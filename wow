@@ -1,0 +1,103 @@
+1.
+{
+    label: { text: 'Guest' },
+    template: function(data, itemElement) {
+        let tags = [];
+
+        // Container utama
+        let guestSection = $("<div>").attr("id", "guest-section");
+
+        // Area untuk menampilkan daftar guest sebagai chip
+        let tagContainer = $("<div>").attr("id", "guest-tags");
+
+        // TextArea sebagai input untuk menambahkan guest
+        let textArea = $("<div>").dxTextArea({
+            value: "",
+            placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
+            onKeyDown: function(e) {
+                if (e.event.key === 'Enter' || e.event.key === ',') {
+                    e.event.preventDefault();
+                    let guestName = e.component.option('value').trim();
+
+                    if (guestName !== "" && !tags.includes(guestName)) {
+                        tags.push(guestName);
+                        addTag(guestName);
+                    }
+
+                    e.component.option("value", ""); // Kosongkan input setelah input
+                    updateGuestCount();
+                }
+            }
+        });
+
+        // Fungsi untuk menambahkan tag sebagai chip
+        function addTag(text) {
+            let tag = $("<span>").addClass("tag").text(text);
+            let closeBtn = $("<span>").addClass("close").text(" ❌");
+
+            closeBtn.on("click", function () {
+                tags = tags.filter(t => t !== text);
+                tag.remove();
+                updateGuestCount();
+            });
+
+            tag.append(closeBtn);
+            tagContainer.append(tag);
+        }
+
+        // Fungsi untuk memperbarui jumlah guest
+        function updateGuestCount() {
+            guestCount.text(`Total Guests: ${tags.length}`);
+        }
+
+        // Label jumlah guest
+        let guestCount = $("<div>").attr("id", "guest-count").text("Total Guests: 0");
+
+        guestSection.append(textArea, tagContainer, guestCount);
+        guestSection.appendTo(itemElement);
+    }
+}
+
+
+
+2.
+{
+    label: { text: 'Guest' },
+    template: function(data, itemElement) {
+        let tags = [];
+
+        let guestSection = $("<div>").addClass("tags-input"); // Tambahkan class CSS
+
+        let mainInput = $("<input>").attr({
+            type: "text",
+            placeholder: "Tambahkan guest lalu tekan Enter"
+        }).addClass("dx-textbox");
+
+        mainInput.on("keydown", function (e) {
+            if (e.key === "Enter" && mainInput.val().trim() !== "") {
+                e.preventDefault();
+                let guestName = mainInput.val().trim();
+                if (!tags.includes(guestName)) {
+                    tags.push(guestName);
+                    addTag(guestName);
+                }
+                mainInput.val(""); // Kosongkan input setelah input
+            }
+        });
+
+        function addTag(text) {
+            let tag = $("<span>").addClass("tag").text(text);
+            let closeBtn = $("<span>").addClass("close").text("❌");
+            closeBtn.on("click", function () {
+                tags = tags.filter(t => t !== text);
+                tag.remove();
+            });
+            tag.append(closeBtn);
+            guestSection.prepend(tag);
+        }
+
+        guestSection.append(mainInput);
+        guestSection.appendTo(itemElement);
+    }
+}
+wow
