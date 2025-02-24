@@ -1,0 +1,51 @@
+$(function () {
+    let tags = []; // Array untuk menyimpan daftar guest
+
+    // Fungsi untuk memperbarui tampilan chip di dalam TextArea
+    function updateTextArea() {
+        let chipHTML = tags.map(tag => 
+            `<span class="chip">${tag} <span class="remove-chip" data-tag="${tag}">✖</span></span>`
+        ).join(" ");
+        
+        $("#guest-textarea").html(chipHTML + '<input type="text" id="input-field" placeholder="Tambahkan guest...">');
+        
+        $("#input-field").focus(); // Tetap fokus di input setelah update
+    }
+
+    // Fungsi untuk menambahkan guest ke daftar
+    function addTag(text) {
+        if (text.trim() !== "" && !tags.includes(text)) {
+            tags.push(text);
+            updateTextArea();
+        }
+    }
+
+    // Container untuk Guest Input
+    let $guestSection = $("<div>").attr("id", "guest-section").appendTo("body");
+
+    // TextArea Custom dengan Chip
+    let $textArea = $("<div>")
+        .attr("id", "guest-textarea")
+        .addClass("custom-textarea")
+        .appendTo($guestSection);
+
+    // Inisialisasi Inputan Pertama
+    updateTextArea();
+
+    // Event Listener untuk Menangkap Input
+    $(document).on("keydown", "#input-field", function (e) {
+        if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            let guestName = $(this).val().trim();
+            addTag(guestName);
+            $(this).val(""); // Kosongkan input setelah menambahkan guest
+        }
+    });
+
+    // Event Listener untuk Menghapus Chip
+    $(document).on("click", ".remove-chip", function () {
+        let tagToRemove = $(this).data("tag");
+        tags = tags.filter(tag => tag !== tagToRemove);
+        updateTextArea();
+    });
+});
