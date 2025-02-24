@@ -1,0 +1,61 @@
+{
+    label: { text: 'Guest' },
+    template: function(data, itemElement) {
+        let tags = [];
+
+        // TextArea untuk input guest
+        let textArea = $("<div>").dxTextArea({
+            value: "",
+            placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
+            onKeyDown: function(e) {
+                if (e.event.key === "Enter" || e.event.key === ",") {
+                    e.event.preventDefault(); // Mencegah newline di textarea
+
+                    let guestName = e.component.option("value").trim(); // Ambil teks yang diketik
+
+                    if (guestName !== "" && !tags.includes(guestName)) {
+                        tags.push(guestName);
+                        updateTags();
+                    }
+
+                    e.component.option("value", ""); // Kosongkan textarea setelah input
+                    updateGuestCount();
+                }
+            }
+        });
+
+        // Container untuk menampilkan daftar guest sebagai chip
+        let tagsContainer = $("<div>").addClass("guest-tags-container");
+
+        // Fungsi untuk memperbarui tampilan daftar guest
+        function updateTags() {
+            tagsContainer.empty();
+            tags.forEach(tag => {
+                $("<span>")
+                    .addClass("guest-chip")
+                    .text(tag)
+                    .append(
+                        $("<span>")
+                            .addClass("remove-chip")
+                            .text(" ×")
+                            .on("click", function() {
+                                tags = tags.filter(t => t !== tag);
+                                updateTags();
+                                updateGuestCount();
+                            })
+                    )
+                    .appendTo(tagsContainer);
+            });
+        }
+
+        // Menampilkan jumlah guest yang telah ditambahkan
+        let guestCount = $("<div>").text("Total Guests: 0");
+
+        function updateGuestCount() {
+            guestCount.text(`Total Guests: ${tags.length}`);
+        }
+
+        // Tambahkan komponen ke dalam itemElement
+        itemElement.append(textArea, tagsContainer, guestCount);
+    }
+}
