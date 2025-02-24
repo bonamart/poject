@@ -1,3 +1,72 @@
+0.
+{
+    label: { text: 'Guest' },
+    template: function(data, itemElement) {
+        let tags = [];
+
+        let textArea = $("<div>").dxTextArea({
+            value: "",
+            placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
+            onKeyDown: function(e) {
+                if (e.event.key === 'Enter' || e.event.key === ',') {
+                    e.event.preventDefault();
+                    let guestName = e.component.option('value').trim();
+
+                    if (guestName !== "" && !tags.includes(guestName)) {
+                        tags.push(guestName);
+                        updateTags();
+                    }
+
+                    e.component.option("value", ""); // Reset input setelah menambahkan guest
+                    updateGuestCount();
+                }
+            }
+        });
+
+        let tagsContainer = $("<div>").dxTemplate({
+            template: function(data) {
+                return tags.map(tag => {
+                    return $("<span>").dxButton({
+                        text: tag,
+                        type: "default",
+                        stylingMode: "contained",
+                        onClick: function() {
+                            tags = tags.filter(t => t !== tag);
+                            updateTags();
+                            updateGuestCount();
+                        }
+                    });
+                });
+            }
+        });
+
+        function updateTags() {
+            tagsContainer.empty();
+            tags.forEach(tag => {
+                $("<span>").dxButton({
+                    text: tag,
+                    type: "default",
+                    stylingMode: "contained",
+                    onClick: function() {
+                        tags = tags.filter(t => t !== tag);
+                        updateTags();
+                        updateGuestCount();
+                    }
+                }).appendTo(tagsContainer);
+            });
+        }
+
+        function updateGuestCount() {
+            guestCount.text(`Total Guests: ${tags.length}`);
+        }
+
+        let guestCount = $("<div>").text("Total Guests: 0");
+
+        itemElement.append(textArea, tagsContainer, guestCount);
+    }
+}
+
+
 1.
 {
     label: { text: 'Guest' },
