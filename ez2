@@ -1,0 +1,86 @@
+{
+    label: { text: 'Guest' },
+    template: function(data, itemElement) {
+        let tags = []; // Menyimpan daftar guest
+
+        // Container utama
+        let guestSection = $("<div>").attr("id", "guest-section").addClass("tags-input");
+
+        // Input tersembunyi untuk menyimpan nilai tag
+        let hiddenInput = $("<input>").attr({
+            type: "hidden",
+            name: "guest-list"
+        });
+
+        // Input utama untuk menambahkan guest
+        let mainInput = $("<input>").attr({
+            type: "text",
+            placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)"
+        }).addClass("main-input");
+
+        mainInput.on("input", function () {
+            let enteredTags = mainInput.val().split(",");
+            if (enteredTags.length > 1) {
+                enteredTags.forEach(function (t) {
+                    let filteredTag = filterTag(t);
+                    if (filteredTag.length > 0) {
+                        addTag(filteredTag);
+                    }
+                });
+                mainInput.val(""); // Kosongkan input setelah input tag
+            }
+        });
+
+        mainInput.on("keydown", function (e) {
+            let keyCode = e.which || e.keyCode;
+            if (keyCode === 8 && mainInput.val().length === 0 && tags.length > 0) {
+                removeTag(tags.length - 1); // Hapus tag terakhir jika input kosong
+            }
+        });
+
+        // Tambahkan elemen ke dalam container
+        guestSection.append(mainInput, hiddenInput);
+        
+        // Fungsi untuk menambahkan tag baru
+        function addTag(text) {
+            if (tags.includes(text)) return; // Cegah duplikasi
+
+            let tag = {
+                text: text,
+                element: $("<span>").addClass("tag").text(text)
+            };
+
+            let closeBtn = $("<span>").addClass("close").text("❌");
+            closeBtn.on("click", function () {
+                removeTag(tags.indexOf(tag));
+            });
+
+            tag.element.append(closeBtn);
+            tags.push(tag);
+            guestSection.prepend(tag.element); // Tambahkan sebelum input
+            refreshTags();
+        }
+
+        // Fungsi untuk menghapus tag berdasarkan indeks
+        function removeTag(index) {
+            let tag = tags[index];
+            if (!tag) return;
+            tags.splice(index, 1);
+            tag.element.remove();
+            refreshTags();
+        }
+
+        // Fungsi untuk memperbarui nilai tersembunyi
+        function refreshTags() {
+            let tagsList = tags.map(t => t.text);
+            hiddenInput.val(tagsList.join(",")); // Simpan daftar tag
+        }
+
+        // Fungsi untuk membersihkan tag dari karakter aneh
+        function filterTag(tag) {
+            return tag.replace(/[^\w -]/g, '').trim().replace(/\W+/g, '-');
+        }
+
+        guestSection.appendTo(itemElement); // Tambahkan ke UI
+    }
+}
