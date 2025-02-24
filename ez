@@ -49,3 +49,39 @@ $(function () {
         updateTextArea();
     });
 });
+
+
+
+.custom-textarea {
+    border: 1px solid #ccc;
+    padding: 8px;
+    width: 100%;
+    min-height: 50px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    cursor: text;
+}
+
+.custom-textarea input {
+    border: none;
+    outline: none;
+    flex-grow: 1;
+    min-width: 100px;
+}
+
+.chip {
+    background-color: #007bff;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.remove-chip {
+    cursor: pointer;
+    font-weight: bold;
+}
