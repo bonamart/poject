@@ -1,3 +1,60 @@
+-1. dxtextarea
+{
+                        label: { text: 'Guest' },
+                        template: function(data, itemElement) {
+                            let tags = [];
+                    
+                            let textArea = $("<div>").dxTextArea({
+                                value: "",
+                                placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
+                                onKeyDown: function(e) {
+                                    if (e.event.key === 'Enter' || e.event.key === ',') {
+                                        e.event.preventDefault();
+                                        let guestName = e.component.option('value').trim();
+                    
+                                        if (guestName !== "" && !tags.includes(guestName)) {
+                                            tags.push(guestName);
+                                            updateTags();
+                                        }
+                    
+                                        e.component.option("value", ""); // Reset input setelah menambahkan guest
+                                        updateGuestCount();
+                                    }
+                                }
+                            });
+                    
+                            let tagsContainer = $("<div>").addClass("guest-tags-container");
+                    
+                            function updateTags() {
+                                tagsContainer.empty();
+                                tags.forEach(tag => {
+                                    $("<span>")
+                                    .addClass("remove-chip")
+                                    .text(tag)
+                                    .append(
+                                        $("<span>")
+                                        .addClass("remove-chip")
+                                        .text(" x")
+                                        .on ("click", function() {
+                                        tags = tags.filter(t => t !== tag);
+                                            updateTags();
+                                            updateGuestCount();
+                                        })
+                                    )
+                                    .appendTo(tagsContainer);
+                                });
+                            }
+                    
+                            let guestCount = $("<div>").text("Total Guests: 0");
+                            
+                            function updateGuestCount() {
+                                guestCount.text(`Total Guests: ${tags.length}`);
+                            }
+                    
+                    
+                            itemElement.append(textArea, tagsContainer, guestCount);
+                        }
+                    }, 
 0.
 {
     label: { text: 'Guest' },
