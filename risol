@@ -1,3 +1,89 @@
+onAppointmentFormOpening: function(e) {
+    const form = e.form;
+    let appointmentData = e.appointmentData;
+    console.log("Loaded Appointment Data:", appointmentData); // Debugging log
+
+    // Pastikan guest & family selalu dalam bentuk array
+    appointmentData.guest = appointmentData.guest
+        ? (typeof appointmentData.guest === "string" ? JSON.parse(appointmentData.guest) : appointmentData.guest)
+        : [];
+    
+    appointmentData.family = appointmentData.family
+        ? (typeof appointmentData.family === "string" ? JSON.parse(appointmentData.family) : appointmentData.family)
+        : [];
+
+    console.log("Processed Guest:", appointmentData.guest);
+    console.log("Processed Family:", appointmentData.family);
+
+    form.option("items", [
+        {
+            itemType: "group",
+            caption: "Guest Type",
+            items: [
+                {
+                    label: { text: "Employee" },
+                    editorType: "dxTagBox",
+                    dataField: "employee_id",
+                    editorOptions: {
+                        dataSource: emplo,
+                        displayExpr: "FullName",
+                        valueExpr: "id",
+                        value: Array.isArray(appointmentData.employee_id) ? appointmentData.employee_id : [],
+                        showSelectionControls: true,
+                        applyValueMode: "useButtons",
+                        searchEnabled: true
+                    }
+                },
+                {
+                    label: { text: "Guest" },
+                    editorType: "dxTagBox",
+                    dataField: "guest",
+                    editorOptions: {
+                        value: appointmentData.guest,
+                        acceptCustomValue: true,
+                        searchEnabled: true,
+                        showSelectionControls: true,
+                        applyValueMode: "useButtons",
+                        onCustomItemCreating: function(args) {
+                            let guests = form.option("formData").guest || [];
+                            if (!guests.includes(args.text)) {
+                                guests.push(args.text);
+                                args.customItem = args.text;
+                            } else {
+                                args.customItem = null;
+                            }
+                            form.updateData("guest", guests);
+                        }
+                    }
+                },
+                {
+                    label: { text: "Family" },
+                    editorType: "dxTagBox",
+                    dataField: "family",
+                    editorOptions: {
+                        value: appointmentData.family,
+                        acceptCustomValue: true,
+                        searchEnabled: true,
+                        showSelectionControls: true,
+                        applyValueMode: "useButtons",
+                        onCustomItemCreating: function(args) {
+                            let familys = form.option("formData").family || [];
+                            if (!familys.includes(args.text)) {
+                                familys.push(args.text);
+                                args.customItem = args.text;
+                            } else {
+                                args.customItem = null;
+                            }
+                            form.updateData("family", familys);
+                        }
+                    }
+                }
+            ]
+        }
+    ]);
+}
+
+
 appointmentTooltipTemplate: function(model) {
     const booking = model.appointmentData;
 
