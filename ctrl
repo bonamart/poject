@@ -1,0 +1,119 @@
+$booking = $ghms->map(function ($request) use ($rooms, $locations) {
+    $room = $rooms->firstWhere('id', $request->ghm_room_id);
+    $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
+
+    return [
+        'id' => $request->id,
+        'Room Name' => $room ? $room->roomName : "Unknown",
+        'Location' => $location ? $location->Location : "Unknown",
+        'Employee' => json_decode($request->employee_id, true) ?? [],  // Pastikan berbentuk array
+        'Guest' => json_decode($request->guest, true) ?? [],
+        'Family' => json_decode($request->family, true) ?? [],
+    ];
+});
+
+return response()->json([
+    'status' => "show",
+    'message' => $this->getMessage()['show'],
+    'data' => $data,
+    'locations' => $locations,
+    'rooms' => $rooms,
+    'booking' => $booking // <-- Ini yang menampilkan 3 kolom
+])->setEncodingOptions(JSON_NUMERIC_CHECK);
+
+========
+
+  var modname = 'ghmrequest';
+var modelclass = 'ghm';
+var popupmode;
+
+function moveEditColumnToLeft(dataGrid) {
+    dataGrid.columnOption("command:edit", { 
+        visibleIndex: -1,
+        width: 80 
+    });
+}
+
+var dataGrid = $("#gridContainer").dxDataGrid({
+    dataSource: store(modname),
+    allowColumnReordering: true,
+    allowColumnResizing: true,
+    columnHidingEnabled: true,
+    rowAlternationEnabled: false,
+    wordWrapEnabled: true,
+    autoExpandAll: true,
+    showBorders: true,
+    filterRow: { visible: true },
+    filterPanel: { visible: true },
+    headerFilter: { visible: true },
+    searchPanel: {
+        visible: true,
+        width: 240,
+        placeholder: 'Search...',
+    },
+    editing: {
+        useIcons: true,
+        mode: "popup",
+        allowAdding: false,
+        allowUpdating: false,
+        allowDeleting: true,
+    },
+    scrolling: {
+        mode: "virtual"
+    },
+    pager: {
+        visible: false,
+        showInfo: true,
+    },
+    columns: [
+        { 
+            dataField: "employee_id",
+            caption: "Employee",
+            width: 200,
+            cellTemplate: function(container, options) {
+                var employee = options.data.employee_id;
+                var sapid = options.data.sapid;
+                $("<div>")
+                    .text(employee + " - " + sapid)
+                    .appendTo(container);
+            }
+        },
+        { 
+            dataField: "guest",
+            caption: "Guest",
+            width: 180
+        },
+        { 
+            dataField: "family",
+            caption: "Family",
+            width: 180
+        },
+        {
+            type: "buttons",
+            buttons: [
+                {
+                    text: "Approve",
+                    onClick: function(e) {
+                        approveBooking(e.row.data.id);
+                    }
+                }
+            ]
+        }
+    ]
+});
+
+// Fungsi untuk Approve Booking
+function approveBooking(bookingId) {
+    $.ajax({
+        url: "/api/approve-booking",
+        method: "POST",
+        data: { id: bookingId },
+        success: function(response) {
+            DevExpress.ui.notify("Booking approved!", "success", 2000);
+            dataGrid.refresh();
+        },
+        error: function(error) {
+            DevExpress.ui.notify("Failed to approve booking", "error", 2000);
+        }
+    });
+}
