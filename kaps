@@ -1,3 +1,8 @@
+$totalPeople = $requests->sum(function ($request) {
+        return ($request->family ?? 0) + ($request->guest ?? 0) + ($request->employee_id ?? 0);
+    });
+
+
 public function dashboard(Request $request)
 {
     // Ambil semua data yang dibutuhkan
