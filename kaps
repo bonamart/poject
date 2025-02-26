@@ -46,21 +46,14 @@ public function dashboard(Request $request)
         $room = Ghm_room::find($room_id);
         $roomCapacity = $room ? $room->roomAccupancy : 0;
 
-        // Query totalPeople dengan SQL Server
+        // Hitung jumlah orang yang menginap
         $totalPeople = DB::table('Ghm')
             ->where('ghm_room_id', $room_id)
             ->where(function ($query) use ($startDate, $endDate) {
                 $query->whereBetween('startDate', [$startDate, $endDate])
                       ->orWhereBetween('endDate', [$startDate, $endDate]);
             })
-            ->selectRaw("
-                SUM(
-                    ISNULL((SELECT COUNT(*) FROM OPENJSON(employee_id)), 0) +
-                    ISNULL((SELECT COUNT(*) FROM OPENJSON(guest)), 0) +
-                    ISNULL((SELECT COUNT(*) FROM OPENJSON(family)), 0)
-                ) as totalPeople
-            ")
-            ->value('totalPeople') ?? 0;
+            ->sum(DB::raw("ISNULL(family, 0) + ISNULL(guest, 0) + ISNULL(employee_id, 0)"));
 
         // Hitung kapasitas yang tersisa
         $remainingCapacity = max($roomCapacity - $totalPeople, 0);
@@ -91,15 +84,10 @@ public function dashboard(Request $request)
     ]);
 }
 
-SELECT 
-    SUM(
-        ISNULL((SELECT COUNT(*) FROM OPENJSON(employee_id)), 0) +
-        ISNULL((SELECT COUNT(*) FROM OPENJSON(guest)), 0) +
-        ISNULL((SELECT COUNT(*) FROM OPENJSON(family)), 0)
-    ) AS totalPeople
-FROM Ghm
-WHERE ghm_room_id = 1
-AND (
-    (startDate BETWEEN '2025-02-25' AND '2025-02-26') 
-    OR (endDate BETWEEN '2025-02-25' AND '2025-02-26')
-);
+$totalPeople = DB::table('Ghm')
+    ->where('ghm_room_id', $room_id)
+    ->where(function ($query) use ($startDate, $endDate) {
+        $query->whereBetween('startDate', [$startDate, $endDate])
+              ->orWhereBetween('endDate', [$startDate, $endDate]);
+    })
+    ->sum(DB::raw("ISNULL(family, 0) + ISNULL(guest, 0) + ISNULL(employee_id, 0)"));
