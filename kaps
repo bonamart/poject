@@ -1,80 +1,90 @@
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
-
+    
     // Ambil kapasitas kamar dari database
-    const selectedRoom = roomsWithLocations.find(room => room.id === appointmentData.ghm_room_id);
-    const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
+    const roomCapacity = roomsWithLocations.find(room => room.id === appointmentData.ghm_room_id)?.roomAccupancy || 0;
 
-    function getTotalPeopleForRoom(roomId, startDate, endDate) {
-        let totalPeople = 0;
-
-        // Ambil semua booking yang ada di scheduler
-        const scheduler = $("#scheduler").dxScheduler("instance");
-        const allAppointments = scheduler.option("dataSource").items();
-
-        allAppointments.forEach(booking => {
-            if (
-                booking.ghm_room_id === roomId &&
-                (
-                    (new Date(booking.startDate) <= new Date(endDate) && new Date(booking.endDate) >= new Date(startDate))
-                )
-            ) {
-                totalPeople += (booking.employee_id?.length || 0) +
-                               (booking.guest?.length || 0) +
-                               (booking.family?.length || 0);
-            }
-        });
-
-        return totalPeople;
+    function calculateTotalPeople() {
+        return (appointmentData.employee_id?.length || 0) +
+               (appointmentData.guest?.length || 0) +
+               (appointmentData.family?.length || 0);
     }
 
-    function validateCapacity() {
-        const totalCurrentPeople = (appointmentData.employee_id?.length || 0) + 
-                                   (appointmentData.guest?.length || 0) + 
-                                   (appointmentData.family?.length || 0);
-
-        const totalPeopleInRoom = getTotalPeopleForRoom(appointmentData.ghm_room_id, appointmentData.startDate, appointmentData.endDate);
-        const totalAfterUpdate = totalPeopleInRoom + totalCurrentPeople;
-
-        if (totalAfterUpdate > roomCapacity) {
-            alert(`Kapasitas kamar (${roomCapacity} orang) sudah penuh!`);
-            return false;
-        }
-        return true;
-    }
-
+    // Set event untuk membatasi jumlah orang berdasarkan kapasitas kamar
     form.option('onFieldDataChanged', function(args) {
         if (['employee_id', 'guest', 'family'].includes(args.dataField)) {
-            appointmentData[args.dataField] = args.value;
-            if (!validateCapacity()) {
-                args.component.updateData(args.dataField, args.previousValue);
+            const totalPeople = calculateTotalPeople();
+            if (totalPeople > roomCapacity) {
+                alert(`Total people (${totalPeople}) exceeds room capacity (${roomCapacity})!`);
+                args.value.pop(); // Hapus orang terakhir yang ditambahkan
+                form.updateData(args.dataField, args.value);
             }
         }
     });
+
+    // Tetapkan form items
+    form.option('items', [
+        {
+            itemType: 'group',
+            caption: 'Room & Date',
+            items: [
+                {
+                    label: { text: 'Room' },
+                    editorType: 'dxSelectBox',
+                    dataField: 'ghm_room_id',
+                    editorOptions: {
+                        dataSource: roomsWithLocations,
+                        displayExpr: 'text',
+                        valueExpr: 'id',
+                        value: appointmentData.ghm_room_id || null,
+                        onValueChanged: function(e) {
+                            const selectedRoom = roomsWithLocations.find(room => room.id === e.value);
+                            const newCapacity = selectedRoom?.roomAccupancy || 0;
+                            alert(`Room capacity updated to: ${newCapacity}`);
+                        }
+                    }
+                },
+                {
+                    label: { text: 'Remaining Capacity' },
+                    editorType: 'dxTextBox',
+                    editorOptions: {
+                        value: roomCapacity - calculateTotalPeople(),
+                        readOnly: true
+                    }
+                }
+            ]
+        }
+    ]);
 }
 
 
-tooltip
+toltip
 appointmentTooltipTemplate: function(model) {
     const booking = model.appointmentData;
+    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+    const roomCapacity = room?.roomAccupancy || 0;
 
-    // Ambil kapasitas kamar
-    const selectedRoom = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
-
-    // Hitung total penghuni kamar pada tanggal yang sama
-    const totalPeopleInRoom = getTotalPeopleForRoom(booking.ghm_room_id, booking.startDate, booking.endDate);
-    const remainingCapacity = Math.max(roomCapacity - totalPeopleInRoom, 0);
+    // Hitung total orang dalam satu booking
+    const totalPeople = (Array.isArray(booking.employee_id) ? booking.employee_id.length : 0) +
+                        (Array.isArray(booking.guest) ? booking.guest.length : 0) +
+                        (Array.isArray(booking.family) ? booking.family.length : 0);
+    
+    const remainingCapacity = roomCapacity - totalPeople;
 
     return `
-        <div>
+        <div style="padding: 10px; font-size: 14px;">
             <b>${booking.text || "No Title"}</b><br>
-            Room: ${selectedRoom ? selectedRoom.text : "Unknown"}<br>
-            Room Capacity: ${roomCapacity} orang<br>
-            Current Occupancy: ${totalPeopleInRoom} orang<br>
-            Remaining Capacity: ${remainingCapacity} orang<br><br>
+            <hr style="margin: 5px 0;">
+            <b>Room:</b> ${room?.text || "Unknown"}<br>
+            <b>Capacity:</b> ${roomCapacity} people<br>
+            <b>Booked:</b> ${totalPeople} people<br>
+            <b>Remaining:</b> <span style="color: ${remainingCapacity > 0 ? 'green' : 'red'};">
+                ${remainingCapacity} people
+            </span><br>
+            <b>Time:</b> ${new Date(booking.startDate).toLocaleString()} - ${new Date(booking.endDate).toLocaleString()}<br>
+            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
             <button id="delete-btn-${booking.id}" class="btn btn-danger btn-sm">Delete</button>
         </div>
     `;
-};
+}
