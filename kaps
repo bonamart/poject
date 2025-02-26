@@ -1,0 +1,60 @@
+tooltip
+appointmentTooltipTemplate: function(model) {
+    const booking = model.appointmentData;
+
+    // Cari kapasitas kamar berdasarkan ID
+    const selectedRoom = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+    const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
+
+    // Hitung total orang yang menempati kamar
+    const totalPeople = (booking.employee_id?.length || 0) + 
+                        (booking.guest?.length || 0) + 
+                        (booking.family?.length || 0);
+
+    const remainingCapacity = Math.max(roomCapacity - totalPeople, 0);
+
+    // Tooltip HTML
+    return `
+        <div>
+            <b>${booking.text || "No Title"}</b><br>
+            Person: ${booking.person || "No Person"}<br>
+            Room Capacity: ${roomCapacity} orang<br>
+            Current Occupancy: ${totalPeople} orang<br>
+            Remaining Capacity: ${remainingCapacity} orang<br><br>
+            <button id="delete-btn-${booking.id}" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+    `;
+};
+
+
+
+kaps kamar
+onAppointmentFormOpening: function(e) {
+    const form = e.form;
+    const appointmentData = e.appointmentData;
+
+    // Dapatkan kapasitas kamar
+    const selectedRoom = roomsWithLocations.find(room => room.id === appointmentData.ghm_room_id);
+    const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
+
+    function validateCapacity() {
+        const totalPeople = (appointmentData.employee_id?.length || 0) + 
+                            (appointmentData.guest?.length || 0) + 
+                            (appointmentData.family?.length || 0);
+
+        if (totalPeople > roomCapacity) {
+            alert(`Maksimal kapasitas kamar hanya ${roomCapacity} orang!`);
+            return false;
+        }
+        return true;
+    }
+
+    form.option('onFieldDataChanged', function(args) {
+        if (['employee_id', 'guest', 'family'].includes(args.dataField)) {
+            appointmentData[args.dataField] = args.value;
+            if (!validateCapacity()) {
+                args.component.updateData(args.dataField, args.previousValue);
+            }
+        }
+    });
+}
