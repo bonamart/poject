@@ -6,6 +6,62 @@ onAppointmentFormOpening: function(e) {
         {
             itemType: "group",
             caption: "Booking Details",
+            template: function(data, itemElement) {
+                itemElement.append(`
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Booking Title</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Start Date</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">End Date</th>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #ccc; padding: 8px;">${booking.text || ""}</td>
+                            <td style="border: 1px solid #ccc; padding: 8px;">${new Date(booking.startDate).toLocaleString()}</td>
+                            <td style="border: 1px solid #ccc; padding: 8px;">${new Date(booking.endDate).toLocaleString()}</td>
+                        </tr>
+                    </table>
+                `);
+            }
+        },
+        {
+            itemType: "group",
+            colCount: 1, 
+            items: [
+                { 
+                    dataField: "requestStatus", 
+                    label: { text: "Approval Status" },
+                    editorType: "dxTextBox",
+                    editorOptions: { 
+                        readOnly: true, 
+                        value: booking.requestStatus == 1 ? "✔ Approved" : "✘ Not Approved"
+                    }
+                }
+            ]
+        },
+        {
+            itemType: "button",
+            horizontalAlignment: "right",
+            buttonOptions: {
+                text: "Approve",
+                type: "success",
+                onClick: function() {
+                    approveBooking(booking.id);
+                },
+                disabled: booking.requestStatus == 1 // Disable jika sudah di-approve
+            }
+        }
+    ]);
+}
+
+
+onAppointmentFormOpening: function(e) {
+    const form = e.form;
+    const booking = e.appointmentData;
+
+    form.option("items", [
+        {
+            itemType: "group",
+            caption: "Booking Details",
             items: [
                 { dataField: "text", editorType: "dxTextBox", label: { text: "Booking Title" } },
                 { dataField: "startDate", editorType: "dxDateBox", label: { text: "Start Date" } },
