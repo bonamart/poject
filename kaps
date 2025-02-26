@@ -1,117 +1,86 @@
-public function getRoomAvailability($room_id, $startDate, $endDate) {
-    // Ambil kapasitas kamar dari database
-    $room = DB::table('ghm_room')->where('id', $room_id)->first();
-    $roomCapacity = $room->roomAccupancy ?? 0;
+public function dashboard(Request $request)
+{
+    // Ambil semua data yang dibutuhkan
+    $requests = Ghm::with('User')->get();
+    $rooms = Ghm_room::all();
+    $locations = Location::all();
+    $emplo = Employee::all();
 
-    // Hitung total orang yang sudah terdaftar dalam kamar ini pada tanggal yang sama
-    $totalPeople = DB::table('bookings')
-        ->where('ghm_room_id', $room_id)
-        ->where(function ($query) use ($startDate, $endDate) {
-            $query->whereBetween('startDate', [$startDate, $endDate])
-                  ->orWhereBetween('endDate', [$startDate, $endDate]);
-        })
-        ->selectRaw('SUM(
-            JSON_LENGTH(employee_id) + JSON_LENGTH(guest) + JSON_LENGTH(family)
-        ) as totalPeople')
-        ->value('totalPeople') ?? 0;
+    // Mapping booking
+    $booking = $requests->map(function ($request) use ($rooms, $locations) {
+        $room = $rooms->firstWhere('id', $request->ghm_room_id);
+        $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
+        return [
+            'id' => $request->id,
+            'text' => $request->text,
+            'guest' => $request->guest,
+            'family' => $request->family,
+            'employee_id' => $request->employee_id,
+            'ticketstatus' => $request->ticketStatus,
+            'completeddate' => $request->completeddate,
+            'confirmationStatus' => $request->confirmationStatus,
+            'description' => $request->description,
+            'requestStatus' => $request->requestStatus,
+            'startDate' => $request->startDate ? $request->startDate->toIso8601String() : null,
+            'endDate' => $request->endDate ? $request->endDate->toIso8601String() : null,
+            'code' => $request->code ? $request->code->code : null,
+            'creator' => $request->User ? $request->User->fullname : null,
+            'ghm_room_id' => $request->ghm_room_id,
+            'roomName' => $room ? $room->roomName : null,
+            'location' => $location ? $location->Location : null
+        ];
+    });
 
-    // Hitung kapasitas yang tersisa
-    $remainingCapacity = $roomCapacity - $totalPeople;
+    // Cek apakah user memberikan filter untuk room_id dan tanggal
+    $room_id = $request->input('room_id');
+    $startDate = $request->input('startDate');
+    $endDate = $request->input('endDate');
 
-    return response()->json([
-        'roomCapacity' => $roomCapacity,
+    $roomCapacity = 0;
+    $totalPeople = 0;
+    $remainingCapacity = 0;
+
+    if ($room_id && $startDate && $endDate) {
+        // Ambil kapasitas kamar dari database
+        $room = Ghm_room::find($room_id);
+        $roomCapacity = $room ? $room->roomAccupancy : 0;
+
+        // Hitung jumlah orang yang sudah terdaftar dalam kamar ini pada tanggal yang sama
+        $totalPeople = Ghm::where('ghm_room_id', $room_id)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('startDate', [$startDate, $endDate])
+                      ->orWhereBetween('endDate', [$startDate, $endDate]);
+            })
+            ->selectRaw('SUM(
+                JSON_LENGTH(employee_id) + JSON_LENGTH(guest) + JSON_LENGTH(family)
+            ) as totalPeople')
+            ->value('totalPeople') ?? 0;
+
+        // Hitung kapasitas yang tersisa
+        $remainingCapacity = max($roomCapacity - $totalPeople, 0);
+    }
+
+    // Mapping rooms dengan lokasi
+    $roomsWithLocations = $rooms->map(function ($room) use ($locations) {
+        $location = $locations->firstWhere('id', $room->location_id);
+        return [
+            'text' => $room->roomName,
+            'id' => $room->id,
+            'roomAccupancy' => $room->roomAccupancy,
+            'location' => $location ? $location->Location : null,
+            'color' => '#'.substr(md5($room->roomName), 0, 6)
+        ];
+    });
+
+    // Mendapatkan lokasi unik
+    $uniqueLocations = $roomsWithLocations->pluck('location')->unique()->values();
+
+    return view('dashboard.ghm_booking', [
+        'booking' => $booking,
+        'roomsWithLocations' => $roomsWithLocations,
+        'uniqueLocations' => $uniqueLocations,
+        'emplo' => $emplo,
         'totalPeople' => $totalPeople,
         'remainingCapacity' => $remainingCapacity
     ]);
-}
-
-onAppointmentFormOpening: function(e) {
-    const form = e.form;
-    const appointmentData = e.appointmentData;
-    
-    // Ambil kapasitas kamar dari database
-    const roomCapacity = roomsWithLocations.find(room => room.id === appointmentData.ghm_room_id)?.roomAccupancy || 0;
-
-    function calculateTotalPeople() {
-        return (appointmentData.employee_id?.length || 0) +
-               (appointmentData.guest?.length || 0) +
-               (appointmentData.family?.length || 0);
-    }
-
-    // Set event untuk membatasi jumlah orang berdasarkan kapasitas kamar
-    form.option('onFieldDataChanged', function(args) {
-        if (['employee_id', 'guest', 'family'].includes(args.dataField)) {
-            const totalPeople = calculateTotalPeople();
-            if (totalPeople > roomCapacity) {
-                alert(`Total people (${totalPeople}) exceeds room capacity (${roomCapacity})!`);
-                args.value.pop(); // Hapus orang terakhir yang ditambahkan
-                form.updateData(args.dataField, args.value);
-            }
-        }
-    });
-
-    // Tetapkan form items
-    form.option('items', [
-        {
-            itemType: 'group',
-            caption: 'Room & Date',
-            items: [
-                {
-                    label: { text: 'Room' },
-                    editorType: 'dxSelectBox',
-                    dataField: 'ghm_room_id',
-                    editorOptions: {
-                        dataSource: roomsWithLocations,
-                        displayExpr: 'text',
-                        valueExpr: 'id',
-                        value: appointmentData.ghm_room_id || null,
-                        onValueChanged: function(e) {
-                            const selectedRoom = roomsWithLocations.find(room => room.id === e.value);
-                            const newCapacity = selectedRoom?.roomAccupancy || 0;
-                            alert(`Room capacity updated to: ${newCapacity}`);
-                        }
-                    }
-                },
-                {
-                    label: { text: 'Remaining Capacity' },
-                    editorType: 'dxTextBox',
-                    editorOptions: {
-                        value: roomCapacity - calculateTotalPeople(),
-                        readOnly: true
-                    }
-                }
-            ]
-        }
-    ]);
-}
-
-
-toltip
-appointmentTooltipTemplate: function(model) {
-    const booking = model.appointmentData;
-    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomCapacity = room?.roomAccupancy || 0;
-
-    // Hitung total orang dalam satu booking
-    const totalPeople = (Array.isArray(booking.employee_id) ? booking.employee_id.length : 0) +
-                        (Array.isArray(booking.guest) ? booking.guest.length : 0) +
-                        (Array.isArray(booking.family) ? booking.family.length : 0);
-    
-    const remainingCapacity = roomCapacity - totalPeople;
-
-    return `
-        <div style="padding: 10px; font-size: 14px;">
-            <b>${booking.text || "No Title"}</b><br>
-            <hr style="margin: 5px 0;">
-            <b>Room:</b> ${room?.text || "Unknown"}<br>
-            <b>Capacity:</b> ${roomCapacity} people<br>
-            <b>Booked:</b> ${totalPeople} people<br>
-            <b>Remaining:</b> <span style="color: ${remainingCapacity > 0 ? 'green' : 'red'};">
-                ${remainingCapacity} people
-            </span><br>
-            <b>Time:</b> ${new Date(booking.startDate).toLocaleString()} - ${new Date(booking.endDate).toLocaleString()}<br>
-            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-            <button id="delete-btn-${booking.id}" class="btn btn-danger btn-sm">Delete</button>
-        </div>
-    `;
 }
