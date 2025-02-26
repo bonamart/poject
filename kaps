@@ -1,49 +1,44 @@
-tooltip
-appointmentTooltipTemplate: function(model) {
-    const booking = model.appointmentData;
-
-    // Cari kapasitas kamar berdasarkan ID
-    const selectedRoom = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
-
-    // Hitung total orang yang menempati kamar
-    const totalPeople = (booking.employee_id?.length || 0) + 
-                        (booking.guest?.length || 0) + 
-                        (booking.family?.length || 0);
-
-    const remainingCapacity = Math.max(roomCapacity - totalPeople, 0);
-
-    // Tooltip HTML
-    return `
-        <div>
-            <b>${booking.text || "No Title"}</b><br>
-            Person: ${booking.person || "No Person"}<br>
-            Room Capacity: ${roomCapacity} orang<br>
-            Current Occupancy: ${totalPeople} orang<br>
-            Remaining Capacity: ${remainingCapacity} orang<br><br>
-            <button id="delete-btn-${booking.id}" class="btn btn-danger btn-sm">Delete</button>
-        </div>
-    `;
-};
-
-
-
-kaps kamar
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
 
-    // Dapatkan kapasitas kamar
+    // Ambil kapasitas kamar dari database
     const selectedRoom = roomsWithLocations.find(room => room.id === appointmentData.ghm_room_id);
     const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
 
-    function validateCapacity() {
-        const totalPeople = (appointmentData.employee_id?.length || 0) + 
-                            (appointmentData.guest?.length || 0) + 
-                            (appointmentData.family?.length || 0);
+    function getTotalPeopleForRoom(roomId, startDate, endDate) {
+        let totalPeople = 0;
 
-        if (totalPeople > roomCapacity) {
-            alert(`Maksimal kapasitas kamar hanya ${roomCapacity} orang!`);
+        // Ambil semua booking yang ada di scheduler
+        const scheduler = $("#scheduler").dxScheduler("instance");
+        const allAppointments = scheduler.option("dataSource").items();
+
+        allAppointments.forEach(booking => {
+            if (
+                booking.ghm_room_id === roomId &&
+                (
+                    (new Date(booking.startDate) <= new Date(endDate) && new Date(booking.endDate) >= new Date(startDate))
+                )
+            ) {
+                totalPeople += (booking.employee_id?.length || 0) +
+                               (booking.guest?.length || 0) +
+                               (booking.family?.length || 0);
+            }
+        });
+
+        return totalPeople;
+    }
+
+    function validateCapacity() {
+        const totalCurrentPeople = (appointmentData.employee_id?.length || 0) + 
+                                   (appointmentData.guest?.length || 0) + 
+                                   (appointmentData.family?.length || 0);
+
+        const totalPeopleInRoom = getTotalPeopleForRoom(appointmentData.ghm_room_id, appointmentData.startDate, appointmentData.endDate);
+        const totalAfterUpdate = totalPeopleInRoom + totalCurrentPeople;
+
+        if (totalAfterUpdate > roomCapacity) {
+            alert(`Kapasitas kamar (${roomCapacity} orang) sudah penuh!`);
             return false;
         }
         return true;
@@ -58,3 +53,28 @@ onAppointmentFormOpening: function(e) {
         }
     });
 }
+
+
+tooltip
+appointmentTooltipTemplate: function(model) {
+    const booking = model.appointmentData;
+
+    // Ambil kapasitas kamar
+    const selectedRoom = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+    const roomCapacity = selectedRoom ? selectedRoom.capacity : 0;
+
+    // Hitung total penghuni kamar pada tanggal yang sama
+    const totalPeopleInRoom = getTotalPeopleForRoom(booking.ghm_room_id, booking.startDate, booking.endDate);
+    const remainingCapacity = Math.max(roomCapacity - totalPeopleInRoom, 0);
+
+    return `
+        <div>
+            <b>${booking.text || "No Title"}</b><br>
+            Room: ${selectedRoom ? selectedRoom.text : "Unknown"}<br>
+            Room Capacity: ${roomCapacity} orang<br>
+            Current Occupancy: ${totalPeopleInRoom} orang<br>
+            Remaining Capacity: ${remainingCapacity} orang<br><br>
+            <button id="delete-btn-${booking.id}" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+    `;
+};
