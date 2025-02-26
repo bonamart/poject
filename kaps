@@ -1,3 +1,37 @@
+public function getRoomCapacity(Request $request)
+{
+    $room_id = $request->input('room_id');
+    $startDate = $request->input('startDate');
+    $endDate = $request->input('endDate');
+
+    // Ambil kapasitas kamar dari database
+    $room = DB::table('ghm_room')->where('id', $room_id)->first();
+    $roomCapacity = $room->roomAccupancy ?? 0;
+
+    // Hitung jumlah orang yang sudah ada di kamar pada tanggal yang sama
+    $totalPeople = DB::table('Ghm')
+        ->where('ghm_room_id', $room_id)
+        ->where(function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('startDate', [$startDate, $endDate])
+                  ->orWhereBetween('endDate', [$startDate, $endDate]);
+        })
+        ->selectRaw('
+            COALESCE(SUM(JSON_LENGTH(employee_id)), 0) + 
+            COALESCE(SUM(JSON_LENGTH(guest)), 0) + 
+            COALESCE(SUM(JSON_LENGTH(family)), 0) as totalPeople
+        ')
+        ->value('totalPeople') ?? 0;
+
+    $remainingCapacity = max(0, $roomCapacity - $totalPeople); // Pastikan tidak negatif
+
+    return response()->json([
+        'roomCapacity' => $roomCapacity,
+        'totalPeople' => $totalPeople,
+        'remainingCapacity' => $remainingCapacity
+    ]);
+}
+
+
 public function dashboard(Request $request)
 {
     // Ambil semua data yang dibutuhkan
