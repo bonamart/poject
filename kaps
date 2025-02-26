@@ -7,7 +7,7 @@ public function dashboard()
     $locations = Location::all();
     $emplo = Employee::all();
 
-    // Query untuk menghitung jumlah orang dari tabel request_ghm
+    // Query SQL Server untuk menghitung jumlah tamu
     $totalPeopleData = DB::select("
         SELECT 
             request_ghm.id,
@@ -23,16 +23,18 @@ public function dashboard()
         GROUP BY id
     ");
 
-    // Konversi hasil query ke array asosiatif
-    $totalPeopleArray = collect($totalPeopleData)->keyBy('id');
+    // Konversi hasil query ke associative array dengan ID sebagai key
+    $totalPeopleArray = collect($totalPeopleData)->mapWithKeys(function ($item) {
+        return [$item->id => $item->totalAll];
+    });
 
-    // Tambahkan totalPeople ke setiap booking
+    // Mapping booking
     $booking = $requests->map(function ($request) use ($rooms, $locations, $totalPeopleArray) {
         $room = $rooms->firstWhere('id', $request->ghm_room_id);
         $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
 
         // Ambil totalPeople berdasarkan ID request
-        $totalPeople = $totalPeopleArray[$request->id]->totalAll ?? 0;
+        $totalPeople = $totalPeopleArray[$request->id] ?? 0;
 
         return [
             'id' => $request->id,
