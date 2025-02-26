@@ -1,20 +1,39 @@
-$totalPeople = $requests->sum(function ($request) {
-        return ($request->family ?? 0) + ($request->guest ?? 0) + ($request->employee_id ?? 0);
-    });
+use Illuminate\Support\Facades\DB;
 
-
-public function dashboard(Request $request)
+public function dashboard()
 {
-    // Ambil semua data yang dibutuhkan
     $requests = Ghm::with('User')->get();
     $rooms = Ghm_room::all();
     $locations = Location::all();
     $emplo = Employee::all();
 
-    // Mapping booking
-    $booking = $requests->map(function ($request) use ($rooms, $locations) {
+    // Query untuk menghitung jumlah orang dari tabel request_ghm
+    $totalPeopleData = DB::select("
+        SELECT 
+            request_ghm.id,
+            COALESCE(SUM(EmployeeCount), 0) AS totalEmployee,
+            COALESCE(SUM(GuestCount), 0) AS totalGuest,
+            COALESCE(SUM(FamilyCount), 0) AS totalFamily,
+            COALESCE(SUM(EmployeeCount + GuestCount + FamilyCount), 0) AS totalAll
+        FROM 
+            [request_ghm]
+        CROSS APPLY (SELECT COUNT(*) AS EmployeeCount FROM OPENJSON(employee_id)) AS EmpData
+        CROSS APPLY (SELECT COUNT(*) AS GuestCount FROM OPENJSON(guest)) AS GuestData
+        CROSS APPLY (SELECT COUNT(*) AS FamilyCount FROM OPENJSON(family)) AS FamilyData
+        GROUP BY id
+    ");
+
+    // Konversi hasil query ke array asosiatif
+    $totalPeopleArray = collect($totalPeopleData)->keyBy('id');
+
+    // Tambahkan totalPeople ke setiap booking
+    $booking = $requests->map(function ($request) use ($rooms, $locations, $totalPeopleArray) {
         $room = $rooms->firstWhere('id', $request->ghm_room_id);
         $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
+
+        // Ambil totalPeople berdasarkan ID request
+        $totalPeople = $totalPeopleArray[$request->id]->totalAll ?? 0;
+
         return [
             'id' => $request->id,
             'text' => $request->text,
@@ -32,67 +51,13 @@ public function dashboard(Request $request)
             'creator' => $request->User ? $request->User->fullname : null,
             'ghm_room_id' => $request->ghm_room_id,
             'roomName' => $room ? $room->roomName : null,
-            'location' => $location ? $location->Location : null
-        ];
-    });
-
-    // Cek apakah user memberikan filter untuk room_id dan tanggal
-    $room_id = $request->input('room_id');
-    $startDate = $request->input('startDate');
-    $endDate = $request->input('endDate');
-
-    // Inisialisasi nilai default
-    $roomCapacity = 0;
-    $totalPeople = 0;
-    $remainingCapacity = 0;
-
-    if ($room_id && $startDate && $endDate) {
-        // Ambil kapasitas kamar dari database
-        $room = Ghm_room::find($room_id);
-        $roomCapacity = $room ? $room->roomAccupancy : 0;
-
-        // Hitung jumlah orang yang menginap
-        $totalPeople = DB::table('Ghm')
-            ->where('ghm_room_id', $room_id)
-            ->where(function ($query) use ($startDate, $endDate) {
-                $query->whereBetween('startDate', [$startDate, $endDate])
-                      ->orWhereBetween('endDate', [$startDate, $endDate]);
-            })
-            ->sum(DB::raw("ISNULL(family, 0) + ISNULL(guest, 0) + ISNULL(employee_id, 0)"));
-
-        // Hitung kapasitas yang tersisa
-        $remainingCapacity = max($roomCapacity - $totalPeople, 0);
-    }
-
-    // Mapping rooms dengan lokasi
-    $roomsWithLocations = $rooms->map(function ($room) use ($locations) {
-        $location = $locations->firstWhere('id', $room->location_id);
-        return [
-            'text' => $room->roomName,
-            'id' => $room->id,
-            'roomAccupancy' => $room->roomAccupancy,
             'location' => $location ? $location->Location : null,
-            'color' => '#'.substr(md5($room->roomName), 0, 6)
+            'totalPeople' => $totalPeople
         ];
     });
-
-    // Mendapatkan lokasi unik
-    $uniqueLocations = $roomsWithLocations->pluck('location')->unique()->values();
 
     return view('dashboard.ghm_booking', [
         'booking' => $booking,
-        'roomsWithLocations' => $roomsWithLocations,
-        'uniqueLocations' => $uniqueLocations,
-        'emplo' => $emplo,
-        'totalPeople' => $totalPeople,
-        'remainingCapacity' => $remainingCapacity
+        'emplo' => $emplo
     ]);
 }
-
-$totalPeople = DB::table('Ghm')
-    ->where('ghm_room_id', $room_id)
-    ->where(function ($query) use ($startDate, $endDate) {
-        $query->whereBetween('startDate', [$startDate, $endDate])
-              ->orWhereBetween('endDate', [$startDate, $endDate]);
-    })
-    ->sum(DB::raw("ISNULL(family, 0) + ISNULL(guest, 0) + ISNULL(employee_id, 0)"));
