@@ -1,3 +1,30 @@
+public function getRoomAvailability($room_id, $startDate, $endDate) {
+    // Ambil kapasitas kamar dari database
+    $room = DB::table('ghm_room')->where('id', $room_id)->first();
+    $roomCapacity = $room->roomAccupancy ?? 0;
+
+    // Hitung total orang yang sudah terdaftar dalam kamar ini pada tanggal yang sama
+    $totalPeople = DB::table('bookings')
+        ->where('ghm_room_id', $room_id)
+        ->where(function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('startDate', [$startDate, $endDate])
+                  ->orWhereBetween('endDate', [$startDate, $endDate]);
+        })
+        ->selectRaw('SUM(
+            JSON_LENGTH(employee_id) + JSON_LENGTH(guest) + JSON_LENGTH(family)
+        ) as totalPeople')
+        ->value('totalPeople') ?? 0;
+
+    // Hitung kapasitas yang tersisa
+    $remainingCapacity = $roomCapacity - $totalPeople;
+
+    return response()->json([
+        'roomCapacity' => $roomCapacity,
+        'totalPeople' => $totalPeople,
+        'remainingCapacity' => $remainingCapacity
+    ]);
+}
+
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
