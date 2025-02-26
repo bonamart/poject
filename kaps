@@ -48,7 +48,7 @@ public function index(Request $request)
 
         $data = $dataquery
             ->selectRaw("request_ghm.*, codes.code, request_ghm_room.location_id, employee.tbl_location.Location, request_ghm_room.roomName,
-                (SELECT STRING_AGG(e.FullName, ', ') FROM employee e WHERE JSON_VALUE(request_ghm.employee_id, '$[0]') = e.id) AS employee_id,
+                (SELECT STRING_AGG(e.FullName, ', ') FROM employee e WHERE e.id IN (SELECT value FROM OPENJSON(request_ghm.employee_id))) AS employee_id,
                 (SELECT STRING_AGG(value, ', ') FROM OPENJSON(request_ghm.guest)) AS guest,
                 (SELECT STRING_AGG(value, ', ') FROM OPENJSON(request_ghm.family)) AS family,
                 CASE WHEN request_ghm.user_id='".$user_id."' then 1 else 0 end as isMine,
@@ -89,6 +89,7 @@ public function index(Request $request)
         return response()->json(["status" => "error", "message" => $e->getMessage()]);
     }
 }
+
 =========
 
 onAppointmentFormOpening: function(e) {
