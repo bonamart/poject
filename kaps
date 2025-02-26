@@ -1,65 +1,37 @@
-use Illuminate\Support\Facades\DB;
+onAppointmentFormOpening: function(e) {
+    const form = e.form;
+    const booking = e.appointmentData;
 
-public function dashboard()
-{
-    $requests = Ghm::with('User')->get();
-    $rooms = Ghm_room::all();
-    $locations = Location::all();
-    $emplo = Employee::all();
-
-    // Query SQL Server untuk menghitung jumlah tamu
-    $totalPeopleData = DB::select("
-        SELECT 
-            request_ghm.id,
-            COALESCE(SUM(EmployeeCount), 0) AS totalEmployee,
-            COALESCE(SUM(GuestCount), 0) AS totalGuest,
-            COALESCE(SUM(FamilyCount), 0) AS totalFamily,
-            COALESCE(SUM(EmployeeCount + GuestCount + FamilyCount), 0) AS totalAll
-        FROM 
-            [request_ghm]
-        CROSS APPLY (SELECT COUNT(*) AS EmployeeCount FROM OPENJSON(employee_id)) AS EmpData
-        CROSS APPLY (SELECT COUNT(*) AS GuestCount FROM OPENJSON(guest)) AS GuestData
-        CROSS APPLY (SELECT COUNT(*) AS FamilyCount FROM OPENJSON(family)) AS FamilyData
-        GROUP BY id
-    ");
-
-    // Konversi hasil query ke associative array dengan ID sebagai key
-    $totalPeopleArray = collect($totalPeopleData)->mapWithKeys(function ($item) {
-        return [$item->id => $item->totalAll];
-    });
-
-    // Mapping booking
-    $booking = $requests->map(function ($request) use ($rooms, $locations, $totalPeopleArray) {
-        $room = $rooms->firstWhere('id', $request->ghm_room_id);
-        $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
-
-        // Ambil totalPeople berdasarkan ID request
-        $totalPeople = $totalPeopleArray[$request->id] ?? 0;
-
-        return [
-            'id' => $request->id,
-            'text' => $request->text,
-            'guest' => $request->guest,
-            'family' => $request->family,
-            'employee_id' => $request->employee_id,
-            'ticketstatus' => $request->ticketStatus,
-            'completeddate' => $request->completeddate,
-            'confirmationStatus' => $request->confirmationStatus,
-            'description' => $request->description,
-            'requestStatus' => $request->requestStatus,
-            'startDate' => $request->startDate ? $request->startDate->toIso8601String() : null,
-            'endDate' => $request->endDate ? $request->endDate->toIso8601String() : null,
-            'code' => $request->code ? $request->code->code : null,
-            'creator' => $request->User ? $request->User->fullname : null,
-            'ghm_room_id' => $request->ghm_room_id,
-            'roomName' => $room ? $room->roomName : null,
-            'location' => $location ? $location->Location : null,
-            'totalPeople' => $totalPeople
-        ];
-    });
-
-    return view('dashboard.ghm_booking', [
-        'booking' => $booking,
-        'emplo' => $emplo
+    form.option("items", [
+        {
+            itemType: "group",
+            caption: "Booking Details",
+            items: [
+                { dataField: "text", editorType: "dxTextBox", label: { text: "Booking Title" } },
+                { dataField: "startDate", editorType: "dxDateBox", label: { text: "Start Date" } },
+                { dataField: "endDate", editorType: "dxDateBox", label: { text: "End Date" } },
+                { 
+                    dataField: "requestStatus", 
+                    label: { text: "Approval Status" },
+                    editorType: "dxTextBox",
+                    editorOptions: { 
+                        readOnly: true, 
+                        value: booking.requestStatus == 1 ? "✔ Approved" : "✘ Not Approved"
+                    }
+                }
+            ]
+        },
+        {
+            itemType: "button",
+            horizontalAlignment: "right",
+            buttonOptions: {
+                text: "Approve",
+                type: "success",
+                onClick: function() {
+                    approveBooking(booking.id);
+                },
+                disabled: booking.requestStatus == 1 // Disable jika sudah di-approve
+            }
+        }
     ]);
 }
