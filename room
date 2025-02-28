@@ -1,0 +1,31 @@
+resourceCellTemplate: function(cellData) {
+    const name = $('<div>')
+        .addClass('name')                    
+        .append($('<h2>').text(cellData.text));
+
+    const roomAccupancy = $('<div>')
+        .addClass('roomAccupancy')
+        .html(`Bed: ${cellData.data.roomAccupancy}`);
+
+    // Tentukan warna berdasarkan jumlah bed
+    let bgColor;
+    if (cellData.data.roomAccupancy > 5) {
+        bgColor = "#4caf50"; // Hijau untuk kamar dengan banyak bed
+    } else if (cellData.data.roomAccupancy > 2) {
+        bgColor = "#ff9800"; // Oranye untuk kamar dengan kapasitas sedang
+    } else {
+        bgColor = "#f44336"; // Merah untuk kamar dengan kapasitas sedikit
+    }
+
+    const combinedColumn = $('<div>')
+        .addClass('combined-column')
+        .append(name, roomAccupancy)
+        .css({
+            backgroundColor: bgColor,
+            padding: '10px',
+            borderRadius: '5px',
+            color: '#fff'
+        });
+
+    return combinedColumn;
+}
