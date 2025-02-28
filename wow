@@ -1,285 +1,111 @@
--2. lol.css
-:root {
-    font-family: Arial, Helvetica, sans-serif;
-}
+🛠 Cara Memperbaiki
+1️⃣ Update Fungsi getTotalGuestsForDateLocally agar Memeriksa Rentang Tanggal
+🔹 Gunakan startDate dan endDate untuk mengecek apakah startDate yang dicek berada dalam rentang booking.
+🔹 Jika booking mencakup beberapa hari, maka tamu tetap dihitung di setiap harinya.
 
-.tags-input {
-    border: 1px solid #333;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    padding: 5px;
-    border-radius: 5px;
-    min-height: 40px;
-    align-items: center;
-    width: 100%;
-    background-color: #fff;
-}
+js
+Copy
+Edit
+function getTotalGuestsForDateLocally(scheduler, roomId, checkDate) {
+    let appointments = scheduler.getDataSource().items(); // Ambil semua booking yang ada
+    let totalGuests = 0;
+    
+    console.log(`📆 Mencari booking di kamar ${roomId} untuk tanggal ${checkDate}`);
 
-.tags-input .tag {
-    font-size: 85%;
-    padding: 0.5em 0.75em;
-    display: flex;
-    align-items: center;
-    background-color: #ddd;
-    border-radius: 15px;
-    cursor: pointer;
-    transition: all 0.1s linear;
-}
+    appointments.forEach(appointment => {
+        let start = new Date(appointment.startDate);
+        let end = new Date(appointment.endDate);
+        let check = new Date(checkDate);
 
-.tags-input .tag:hover {
-    background-color: #3af;
-    color: white;
-}
+        console.log(`🕒 Booking Room ID: ${appointment.ghm_room_id}, Start: ${start}, End: ${end}`);
 
-.tags-input .tag .close {
-    margin-left: 8px;
-    font-size: 1rem;
-    cursor: pointer;
-    font-weight: bold;
-}
+        // Cek apakah checkDate berada dalam rentang startDate - endDate
+        if (appointment.ghm_room_id === roomId && check >= start && check <= end) {
+            let guestCount = safeArray(appointment.guest).length;
+            let familyCount = safeArray(appointment.family).length;
+            let employeeCount = safeArray(appointment.employee_id).length;
 
-.tags-input .tag .close:hover {
-    color: red;
-}
+            console.log(`✔️ Ditemukan booking dalam rentang tanggal: Guest=${guestCount}, Family=${familyCount}, Employee=${employeeCount}`);
 
-.tags-input .dx-textbox {
-    border: none;
-    outline: none;
-    padding: 5px;
-    flex-grow: 1;
-    min-width: 100px;
-    font-size: 1rem;
-    background-color: transparent;
-}
-
-
--1. dxtextarea
-{
-                        label: { text: 'Guest' },
-                        template: function(data, itemElement) {
-                            let tags = [];
-                    
-                            let textArea = $("<div>").dxTextArea({
-                                value: "",
-                                placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
-                                onKeyDown: function(e) {
-                                    if (e.event.key === 'Enter' || e.event.key === ',') {
-                                        e.event.preventDefault();
-                                        let guestName = e.component.option('value').trim();
-                    
-                                        if (guestName !== "" && !tags.includes(guestName)) {
-                                            tags.push(guestName);
-                                            updateTags();
-                                        }
-                    
-                                        e.component.option("value", ""); // Reset input setelah menambahkan guest
-                                        updateGuestCount();
-                                    }
-                                }
-                            });
-                    
-                            let tagsContainer = $("<div>").addClass("guest-tags-container");
-                    
-                            function updateTags() {
-                                tagsContainer.empty();
-                                tags.forEach(tag => {
-                                    $("<span>")
-                                    .addClass("remove-chip")
-                                    .text(tag)
-                                    .append(
-                                        $("<span>")
-                                        .addClass("remove-chip")
-                                        .text(" x")
-                                        .on ("click", function() {
-                                        tags = tags.filter(t => t !== tag);
-                                            updateTags();
-                                            updateGuestCount();
-                                        })
-                                    )
-                                    .appendTo(tagsContainer);
-                                });
-                            }
-                    
-                            let guestCount = $("<div>").text("Total Guests: 0");
-                            
-                            function updateGuestCount() {
-                                guestCount.text(`Total Guests: ${tags.length}`);
-                            }
-                    
-                    
-                            itemElement.append(textArea, tagsContainer, guestCount);
-                        }
-                    }, 
-0.
-{
-    label: { text: 'Guest' },
-    template: function(data, itemElement) {
-        let tags = [];
-
-        let textArea = $("<div>").dxTextArea({
-            value: "",
-            placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
-            onKeyDown: function(e) {
-                if (e.event.key === 'Enter' || e.event.key === ',') {
-                    e.event.preventDefault();
-                    let guestName = e.component.option('value').trim();
-
-                    if (guestName !== "" && !tags.includes(guestName)) {
-                        tags.push(guestName);
-                        updateTags();
-                    }
-
-                    e.component.option("value", ""); // Reset input setelah menambahkan guest
-                    updateGuestCount();
-                }
-            }
-        });
-
-        let tagsContainer = $("<div>").dxTemplate({
-            template: function(data) {
-                return tags.map(tag => {
-                    return $("<span>").dxButton({
-                        text: tag,
-                        type: "default",
-                        stylingMode: "contained",
-                        onClick: function() {
-                            tags = tags.filter(t => t !== tag);
-                            updateTags();
-                            updateGuestCount();
-                        }
-                    });
-                });
-            }
-        });
-
-        function updateTags() {
-            tagsContainer.empty();
-            tags.forEach(tag => {
-                $("<span>").dxButton({
-                    text: tag,
-                    type: "default",
-                    stylingMode: "contained",
-                    onClick: function() {
-                        tags = tags.filter(t => t !== tag);
-                        updateTags();
-                        updateGuestCount();
-                    }
-                }).appendTo(tagsContainer);
-            });
+            totalGuests += guestCount + familyCount + employeeCount;
         }
+    });
 
-        function updateGuestCount() {
-            guestCount.text(`Total Guests: ${tags.length}`);
+    console.log(`✅ Total tamu di kamar ${roomId} pada ${checkDate}: ${totalGuests}`);
+    return totalGuests;
+}
+2️⃣ Penyesuaian di onAppointmentAdding
+🔹 Saat pengguna mencoba menambahkan booking baru, kita perlu memeriksa apakah total tamu pada setiap hari dalam rentang startDate hingga endDate tetap sesuai kapasitas.
+🔹 Gunakan loop untuk mengecek setiap hari dalam rentang booking.
+
+js
+Copy
+Edit
+onAppointmentAdding: function(e) {
+    const appointmentData = e.appointmentData;
+    let scheduler = e.component;
+
+    let guestCount = safeArray(appointmentData.guest).length;
+    let familyCount = safeArray(appointmentData.family).length;
+    let employeeCount = safeArray(appointmentData.employee_id).length;
+    let totalNewGuests = guestCount + familyCount + employeeCount;
+
+    let selectedRoom = appointmentData.ghm_room_id;
+    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
+
+    let startDate = new Date(appointmentData.startDate);
+    let endDate = new Date(appointmentData.endDate);
+    
+    console.log(`🔍 Mengecek kapasitas kamar dari ${startDate.toDateString()} sampai ${endDate.toDateString()}`);
+
+    let isOverCapacity = false;
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        let currentGuests = getTotalGuestsForDateLocally(scheduler, selectedRoom, d);
+        let totalGuestsAfterAdding = currentGuests + totalNewGuests;
+
+        console.log(`📅 ${d.toDateString()} → ${totalGuestsAfterAdding}/${roomCapacity} tamu`);
+
+        if (totalGuestsAfterAdding > roomCapacity) {
+            isOverCapacity = true;
+            break;
         }
-
-        let guestCount = $("<div>").text("Total Guests: 0");
-
-        itemElement.append(textArea, tagsContainer, guestCount);
     }
-}
 
-
-1.
-{
-    label: { text: 'Guest' },
-    template: function(data, itemElement) {
-        let tags = [];
-
-        // Container utama
-        let guestSection = $("<div>").attr("id", "guest-section");
-
-        // Area untuk menampilkan daftar guest sebagai chip
-        let tagContainer = $("<div>").attr("id", "guest-tags");
-
-        // TextArea sebagai input untuk menambahkan guest
-        let textArea = $("<div>").dxTextArea({
-            value: "",
-            placeholder: "Tambahkan guest lalu tekan Enter atau koma (,)",
-            onKeyDown: function(e) {
-                if (e.event.key === 'Enter' || e.event.key === ',') {
-                    e.event.preventDefault();
-                    let guestName = e.component.option('value').trim();
-
-                    if (guestName !== "" && !tags.includes(guestName)) {
-                        tags.push(guestName);
-                        addTag(guestName);
-                    }
-
-                    e.component.option("value", ""); // Kosongkan input setelah input
-                    updateGuestCount();
-                }
-            }
-        });
-
-        // Fungsi untuk menambahkan tag sebagai chip
-        function addTag(text) {
-            let tag = $("<span>").addClass("tag").text(text);
-            let closeBtn = $("<span>").addClass("close").text(" ❌");
-
-            closeBtn.on("click", function () {
-                tags = tags.filter(t => t !== text);
-                tag.remove();
-                updateGuestCount();
-            });
-
-            tag.append(closeBtn);
-            tagContainer.append(tag);
-        }
-
-        // Fungsi untuk memperbarui jumlah guest
-        function updateGuestCount() {
-            guestCount.text(`Total Guests: ${tags.length}`);
-        }
-
-        // Label jumlah guest
-        let guestCount = $("<div>").attr("id", "guest-count").text("Total Guests: 0");
-
-        guestSection.append(textArea, tagContainer, guestCount);
-        guestSection.appendTo(itemElement);
+    if (isOverCapacity) {
+        e.cancel = true; // Batalkan booking
+        DevExpress.ui.notify(`Kapasitas kamar penuh dalam rentang tanggal!`, "error", 3000);
+        return;
     }
-}
 
+    // Jika kapasitas aman, lanjutkan request
+    appointmentData.guest = serializeToJSON(appointmentData.guest);
+    appointmentData.family = serializeToJSON(appointmentData.family);
 
-
-2.
-{
-    label: { text: 'Guest' },
-    template: function(data, itemElement) {
-        let tags = [];
-
-        let guestSection = $("<div>").addClass("tags-input"); // Tambahkan class CSS
-
-        let mainInput = $("<input>").attr({
-            type: "text",
-            placeholder: "Tambahkan guest lalu tekan Enter"
-        }).addClass("dx-textbox");
-
-        mainInput.on("keydown", function (e) {
-            if (e.key === "Enter" && mainInput.val().trim() !== "") {
-                e.preventDefault();
-                let guestName = mainInput.val().trim();
-                if (!tags.includes(guestName)) {
-                    tags.push(guestName);
-                    addTag(guestName);
-                }
-                mainInput.val(""); // Kosongkan input setelah input
-            }
-        });
-
-        function addTag(text) {
-            let tag = $("<span>").addClass("tag").text(text);
-            let closeBtn = $("<span>").addClass("close").text("❌");
-            closeBtn.on("click", function () {
-                tags = tags.filter(t => t !== text);
-                tag.remove();
-            });
-            tag.append(closeBtn);
-            guestSection.prepend(tag);
+    sendRequest(apiurl + "/" + modname, "POST", {
+        requestStatus: 0,
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family
+    }).then(function(response) {
+        if (response.status === 'success') {
+            e.component._dataSource.reload();
+            DevExpress.ui.notify("Booking berhasil dibuat!", "success", 2000);
+        } else {
+            DevExpress.ui.notify("Error: " + response.message, "error", 3000);
         }
-
-        guestSection.append(mainInput);
-        guestSection.appendTo(itemElement);
-    }
+    }).catch(function(error) {
+        DevExpress.ui.notify("Error: " + error.responseText, "error", 3000);
+    });
 }
-wow
+🚀 Kesimpulan
+✔️ Dengan update ini: 1️⃣ getTotalGuestsForDateLocally sekarang mengecek tamu dalam rentang tanggal booking.
+2️⃣ Sebelum menambahkan booking baru, sistem akan mengecek kapasitas kamar di setiap hari dalam rentang tersebut.
+3️⃣ Jika ada hari yang melebihi kapasitas, booking akan dibatalkan.
+
+🔹 Coba jalankan dan lihat apakah log di console menunjukkan jumlah tamu per hari yang benar! 🚀
