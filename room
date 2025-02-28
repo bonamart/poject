@@ -1,3 +1,77 @@
+function getTotalGuestsForDateLocally(scheduler, roomId, startDate) {
+    let appointments = scheduler.getDataSource().items(); // Ambil semua booking yang sudah ada
+
+    let totalGuests = 0;
+
+    appointments.forEach(appointment => {
+        if (appointment.ghm_room_id === roomId && isSameDate(appointment.startDate, startDate)) {
+            let guestCount = (appointment.guest || []).length;
+            let familyCount = (appointment.family || []).length;
+            let employeeCount = (appointment.employee_id || []).length;
+            totalGuests += guestCount + familyCount + employeeCount;
+        }
+    });
+
+    return totalGuests;
+}
+
+// Fungsi untuk membandingkan tanggal tanpa memperhitungkan waktu
+function isSameDate(date1, date2) {
+    let d1 = new Date(date1);
+    let d2 = new Date(date2);
+    return d1.toDateString() === d2.toDateString();
+}
+onAppointmentAdding: function(e) {
+    const appointmentData = e.appointmentData;
+    let scheduler = e.component;
+
+    let guestCount = (appointmentData.guest || []).length;
+    let familyCount = (appointmentData.family || []).length;
+    let employeeCount = (appointmentData.employee_id || []).length;
+    let totalNewGuests = guestCount + familyCount + employeeCount;
+
+    let selectedRoom = appointmentData.ghm_room_id;
+    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.capacity || 0;
+
+    // Hitung total tamu yang sudah ada tanpa AJAX
+    let currentGuests = getTotalGuestsForDateLocally(scheduler, selectedRoom, appointmentData.startDate);
+    
+    let totalGuestsAfterAdding = currentGuests + totalNewGuests;
+
+    if (totalGuestsAfterAdding > roomCapacity) {
+        e.cancel = true; // Batalkan booking
+        DevExpress.ui.notify(`Kapasitas kamar penuh! (${currentGuests}/${roomCapacity})`, "error", 3000);
+        return;
+    }
+
+    // Serialize array sebelum dikirim
+    appointmentData.guest = serializeToJSON(appointmentData.guest);
+    appointmentData.family = serializeToJSON(appointmentData.family);
+    appointmentData.employee_id = serializeToJSON(appointmentData.employee_id);
+
+    sendRequest(apiurl + "/" + modname, "POST", {
+        requestStatus: 0,
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family
+    }).then(function(response) {
+        if (response.status === 'success') {
+            e.component._dataSource.reload();
+            DevExpress.ui.notify("Booking berhasil dibuat!", "success", 2000);
+        } else {
+            DevExpress.ui.notify("Error: " + response.message, "error", 3000);
+        }
+    }).catch(function(error) {
+        DevExpress.ui.notify("Error: " + error.responseText, "error", 3000);
+    });
+}
+
+
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
