@@ -24,6 +24,62 @@ resourceCellTemplate: function(cellData) {
             backgroundColor: bgColor,
             padding: '10px',
             borderRadius: '5px',
+            color: '#fff',
+            textAlign: 'center'
+        });
+
+    return combinedColumn;
+},
+
+onCellPrepared: function(e) {
+    // **Sembunyikan kolom 'code' jika null**
+    if (e.rowType == "data" && e.column.dataField === "code") {
+        const isCodeVisible = e.data.code !== null;
+        $("#formdata").dxDataGrid('columnOption', 'code', 'visible', isCodeVisible);
+    }
+
+    // **Tandai sel kosong dengan warna merah muda**
+    if (e.rowType == "data" && (e.column.index > 0 && e.column.index < 6)) {
+        if (!e.value || /^\s*$/.test(e.value)) {
+            e.cellElement.css({
+                "backgroundColor": "#ffe6e6",
+                "border": "0.5px solid #f56e6e"
+            });
+        }
+    }
+
+    // **Tandai baris dengan `isParent === 1`**
+    if (e.rowType == "data" && e.data.isParent === 1) {
+        e.cellElement.css('background', 'rgba(128, 128, 0, 0.1)');
+    }
+}
+==========
+resourceCellTemplate: function(cellData) {
+    const name = $('<div>')
+        .addClass('name')                    
+        .append($('<h2>').text(cellData.text));
+
+    const roomAccupancy = $('<div>')
+        .addClass('roomAccupancy')
+        .html(`Bed: ${cellData.data.roomAccupancy}`);
+
+    // Tentukan warna berdasarkan jumlah bed
+    let bgColor;
+    if (cellData.data.roomAccupancy > 5) {
+        bgColor = "#4caf50"; // Hijau untuk kamar dengan banyak bed
+    } else if (cellData.data.roomAccupancy > 2) {
+        bgColor = "#ff9800"; // Oranye untuk kamar dengan kapasitas sedang
+    } else {
+        bgColor = "#f44336"; // Merah untuk kamar dengan kapasitas sedikit
+    }
+
+    const combinedColumn = $('<div>')
+        .addClass('combined-column')
+        .append(name, roomAccupancy)
+        .css({
+            backgroundColor: bgColor,
+            padding: '10px',
+            borderRadius: '5px',
             color: '#fff'
         });
 
