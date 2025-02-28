@@ -1,46 +1,51 @@
-🛠 Cara Memperbaiki
-1️⃣ Update Fungsi getTotalGuestsForDateLocally agar Memeriksa Rentang Tanggal
-🔹 Gunakan startDate dan endDate untuk mengecek apakah startDate yang dicek berada dalam rentang booking.
-🔹 Jika booking mencakup beberapa hari, maka tamu tetap dihitung di setiap harinya.
+// Fungsi untuk mengecek apakah dua rentang tanggal beririsan
+function isDateOverlap(start1, end1, start2, end2) {
+    return (new Date(start1) <= new Date(end2)) && (new Date(start2) <= new Date(end1));
+}
 
-js
-Copy
-Edit
-function getTotalGuestsForDateLocally(scheduler, roomId, checkDate) {
-    let appointments = scheduler.getDataSource().items(); // Ambil semua booking yang ada
+// Fungsi untuk memastikan array selalu valid (menghindari null/undefined)
+function safeArray(arr) {
+    return Array.isArray(arr) ? arr : [];
+}
+
+// Fungsi untuk menghitung total tamu pada tanggal yang beririsan dengan booking baru
+function getTotalGuestsForDateLocally(scheduler, roomId, startDate, endDate) {
+    let appointments = scheduler.getDataSource().items(); // Ambil semua booking yang sudah ada
     let totalGuests = 0;
-    
-    console.log(`📆 Mencari booking di kamar ${roomId} untuk tanggal ${checkDate}`);
 
     appointments.forEach(appointment => {
-        let start = new Date(appointment.startDate);
-        let end = new Date(appointment.endDate);
-        let check = new Date(checkDate);
-
-        console.log(`🕒 Booking Room ID: ${appointment.ghm_room_id}, Start: ${start}, End: ${end}`);
-
-        // Cek apakah checkDate berada dalam rentang startDate - endDate
-        if (appointment.ghm_room_id === roomId && check >= start && check <= end) {
+        if (
+            appointment.ghm_room_id === roomId &&
+            isDateOverlap(appointment.startDate, appointment.endDate, startDate, endDate)
+        ) {
             let guestCount = safeArray(appointment.guest).length;
             let familyCount = safeArray(appointment.family).length;
             let employeeCount = safeArray(appointment.employee_id).length;
-
-            console.log(`✔️ Ditemukan booking dalam rentang tanggal: Guest=${guestCount}, Family=${familyCount}, Employee=${employeeCount}`);
-
             totalGuests += guestCount + familyCount + employeeCount;
         }
     });
 
-    console.log(`✅ Total tamu di kamar ${roomId} pada ${checkDate}: ${totalGuests}`);
     return totalGuests;
 }
-2️⃣ Penyesuaian di onAppointmentAdding
-🔹 Saat pengguna mencoba menambahkan booking baru, kita perlu memeriksa apakah total tamu pada setiap hari dalam rentang startDate hingga endDate tetap sesuai kapasitas.
-🔹 Gunakan loop untuk mengecek setiap hari dalam rentang booking.
 
-js
-Copy
-Edit
+// Fungsi validasi booking saat membuka form
+function validateBooking(form) {
+    let guestCount = safeArray(form.getEditor("guest")?.option("value")).length;
+    let familyCount = safeArray(form.getEditor("family")?.option("value")).length;
+    let employeeCount = safeArray(form.getEditor("employee_id")?.option("value")).length;
+    let totalGuests = guestCount + familyCount + employeeCount;
+
+    let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
+    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
+
+    let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
+
+    if (totalGuests > roomCapacity) {
+        DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
+    }
+}
+
+// Event saat user ingin menambahkan booking baru
 onAppointmentAdding: function(e) {
     const appointmentData = e.appointmentData;
     let scheduler = e.component;
@@ -53,35 +58,21 @@ onAppointmentAdding: function(e) {
     let selectedRoom = appointmentData.ghm_room_id;
     let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
 
-    let startDate = new Date(appointmentData.startDate);
-    let endDate = new Date(appointmentData.endDate);
-    
-    console.log(`🔍 Mengecek kapasitas kamar dari ${startDate.toDateString()} sampai ${endDate.toDateString()}`);
+    // Hitung total tamu yang sudah ada dalam rentang tanggal booking baru
+    let currentGuests = getTotalGuestsForDateLocally(scheduler, selectedRoom, appointmentData.startDate, appointmentData.endDate);
+    let totalGuestsAfterAdding = currentGuests + totalNewGuests;
 
-    let isOverCapacity = false;
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        let currentGuests = getTotalGuestsForDateLocally(scheduler, selectedRoom, d);
-        let totalGuestsAfterAdding = currentGuests + totalNewGuests;
-
-        console.log(`📅 ${d.toDateString()} → ${totalGuestsAfterAdding}/${roomCapacity} tamu`);
-
-        if (totalGuestsAfterAdding > roomCapacity) {
-            isOverCapacity = true;
-            break;
-        }
-    }
-
-    if (isOverCapacity) {
+    if (totalGuestsAfterAdding > roomCapacity) {
         e.cancel = true; // Batalkan booking
-        DevExpress.ui.notify(`Kapasitas kamar penuh dalam rentang tanggal!`, "error", 3000);
+        DevExpress.ui.notify(`Kapasitas kamar penuh! (${currentGuests}/${roomCapacity})`, "error", 3000);
         return;
     }
 
-    // Jika kapasitas aman, lanjutkan request
-    appointmentData.guest = serializeToJSON(appointmentData.guest);
-    appointmentData.family = serializeToJSON(appointmentData.family);
+    // Serialize array sebelum dikirim
+    appointmentData.guest = JSON.stringify(appointmentData.guest);
+    appointmentData.family = JSON.stringify(appointmentData.family);
 
+    // Kirim data booking ke server
     sendRequest(apiurl + "/" + modname, "POST", {
         requestStatus: 0,
         text: appointmentData.text,
@@ -102,10 +93,34 @@ onAppointmentAdding: function(e) {
     }).catch(function(error) {
         DevExpress.ui.notify("Error: " + error.responseText, "error", 3000);
     });
-}
-🚀 Kesimpulan
-✔️ Dengan update ini: 1️⃣ getTotalGuestsForDateLocally sekarang mengecek tamu dalam rentang tanggal booking.
-2️⃣ Sebelum menambahkan booking baru, sistem akan mengecek kapasitas kamar di setiap hari dalam rentang tersebut.
-3️⃣ Jika ada hari yang melebihi kapasitas, booking akan dibatalkan.
+},
 
-🔹 Coba jalankan dan lihat apakah log di console menunjukkan jumlah tamu per hari yang benar! 🚀
+// Event saat user ingin mengupdate booking
+onAppointmentUpdating: function(e) {
+    const appointmentData = e.newData;
+    appointmentData.id = e.oldData.id;
+
+    appointmentData.guest = JSON.stringify(appointmentData.guest);
+    appointmentData.family = JSON.stringify(appointmentData.family);
+
+    sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family,
+        id: appointmentData.id
+    }).then(function(response) {
+        if (response.status === 'success') {
+            e.component._dataSource.reload();
+            alert('Booking updated successfully!');
+        } else {
+            alert('Error: ' + response.message);
+        }
+    }).catch(function(error) {
+        alert('Error: ' + error.responseText);
+    });
+}
