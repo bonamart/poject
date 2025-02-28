@@ -1,6 +1,217 @@
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
+    const isNewAppointment = !appointmentData.id;
+
+    console.log('Appointment Data:', appointmentData); // Debug log
+
+    if (appointmentData.employee_id && typeof appointmentData.employee_id === 'string') {
+        appointmentData.employee_id = deserializeFromJSON(appointmentData.employee_id);
+    }
+    if (appointmentData.guest && typeof appointmentData.guest === 'string') {
+        appointmentData.guest = deserializeFromJSON(appointmentData.guest);
+    } else if (!appointmentData.guest) {
+        appointmentData.guest = [];
+    }
+    if (appointmentData.family && typeof appointmentData.family === 'string') {
+        appointmentData.family = deserializeFromJSON(appointmentData.family);
+    } else if (!appointmentData.family) {
+        appointmentData.family = [];
+    }
+
+    function validateBooking() {
+        let guestCount = (form.getEditor("guest")?.option("value") || []).length;
+        let familyCount = (form.getEditor("family")?.option("value") || []).length;
+        let employeeCount = (form.getEditor("employee_id")?.option("value") || []).length;
+
+        let totalGuests = guestCount + familyCount + employeeCount;
+        let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
+
+        let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.capacity || 0;
+
+        let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
+
+        if (totalGuests > roomCapacity) {
+            doneButton.addClass("dx-state-disabled");
+            DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
+        } else {
+            doneButton.removeClass("dx-state-disabled");
+        }
+    }
+
+    form.option('items', [
+        {
+            itemType: 'group',
+            colCount: 1,
+            caption: 'Interests',
+            items: [
+                {
+                    label: { text: 'Code' },
+                    editorType: 'dxTextBox',
+                    dataField: 'code',
+                    disabled: true,
+                    editorOptions: { value: appointmentData.code || '' }
+                },
+                {
+                    label: { text: 'Subject' },
+                    editorType: 'dxTextBox',
+                    dataField: 'text',
+                    editorOptions: { value: appointmentData.text || '' }
+                },
+                {
+                    label: { text: 'Description' },
+                    editorType: 'dxTextArea',
+                    dataField: 'description',
+                    editorOptions: { value: appointmentData.description || '' }
+                },
+            ]
+        },
+        {
+            itemType: 'group',
+            caption: 'Room & Date',
+            items: [
+                {
+                    label: { text: 'Room' },
+                    editorType: 'dxSelectBox',
+                    dataField: 'ghm_room_id',
+                    editorOptions: {
+                        dataSource: roomsWithLocations,
+                        displayExpr: 'text',
+                        valueExpr: 'id',
+                        value: appointmentData.ghm_room_id || null,
+                        onValueChanged: validateBooking
+                    }
+                },
+                {
+                    label: { text: 'Start Date' },
+                    editorType: 'dxDateBox',
+                    dataField: 'startDate',
+                    editorOptions: {
+                        type: 'datetime',
+                        value: appointmentData.startDate || new Date(),
+                        displayFormat: 'yyyy-MM-dd HH:mm:ss',
+                        dateSerializationFormat: 'yyyy-MM-ddTHH:mm:ssZ'
+                    }
+                },
+                {
+                    label: { text: 'End Date' },
+                    editorType: 'dxDateBox',
+                    dataField: 'endDate',
+                    editorOptions: {
+                        type: 'datetime',
+                        value: appointmentData.endDate || new Date(),
+                        displayFormat: 'yyyy-MM-dd HH:mm:ss',
+                        dateSerializationFormat: 'yyyy-MM-ddTHH:mm:ssZ'
+                    }
+                },
+            ]
+        },
+        {
+            itemType: 'group',
+            colSpan: 2,
+            caption: 'Guest Type',
+            items: [
+                {
+                    title: 'Employee',
+                    label: { text: 'Employee' },
+                    editorType: 'dxTagBox',
+                    dataField: 'employee_id',
+                    editorOptions: {
+                        dataSource: emplo,
+                        displayExpr: function(item) {
+                            if (!item) return "";
+                            const department = departments.find(dept => dept.id === item.department_id);
+                            return `${item.FullName} | ${item.SAPID} | ${department ? department.DepartmentName : "Failed"}`;
+                        },
+                        valueExpr: 'id',
+                        value: Array.isArray(appointmentData.employee_id) ? appointmentData.employee_id : [],
+                        showSelectionControls: true,
+                        applyValueMode: 'useButtons',
+                        searchEnabled: true,
+                        onValueChanged: validateBooking
+                    }
+                },
+                {
+                    title: 'Guest',
+                    editorType: 'dxTagBox',
+                    dataField: 'guest',
+                    editorOptions: {
+                        value: Array.isArray(appointmentData.guest) ? appointmentData.guest : [],
+                        acceptCustomValue: true,
+                        searchEnabled: true,
+                        showSelectionControls: true,
+                        applyValueMode: 'useButtons',
+                        onValueChanged: validateBooking
+                    }
+                },
+                {
+                    title: 'Family',
+                    editorType: 'dxTagBox',
+                    dataField: 'family',
+                    editorOptions: {
+                        value: Array.isArray(appointmentData.family) ? appointmentData.family : [],
+                        acceptCustomValue: true,
+                        searchEnabled: true,
+                        showSelectionControls: true,
+                        applyValueMode: 'useButtons',
+                        onValueChanged: validateBooking
+                    }
+                }
+            ]
+        }
+    ]);
+
+    setTimeout(validateBooking, 100);
+},
+
+onAppointmentAdding: function(e) {
+    const appointmentData = e.appointmentData;
+    let guestCount = (appointmentData.guest || []).length;
+    let familyCount = (appointmentData.family || []).length;
+    let employeeCount = (appointmentData.employee_id || []).length;
+
+    let totalGuests = guestCount + familyCount + employeeCount;
+    let selectedRoom = appointmentData.ghm_room_id;
+    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.capacity || 0;
+
+    if (totalGuests > roomCapacity) {
+        e.cancel = true;
+        DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
+        return;
+    }
+
+    appointmentData.guest = serializeToJSON(appointmentData.guest);
+    appointmentData.family = serializeToJSON(appointmentData.family);
+    appointmentData.employee_id = serializeToJSON(appointmentData.employee_id);
+
+    sendRequest(apiurl + "/" + modname, "POST", {
+        requestStatus: 0,
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family
+    }).then(function(response) {
+        if (response.status === 'success') {
+            e.component._dataSource.reload();
+            alert('Booking created successfully!');
+        } else {
+            alert('Error: ' + response.message);
+        }
+    }).catch(function(error) {
+        alert('Error: ' + error.responseText);
+    });
+}
+============================================================================
+============================================================================
+============================================================================
+
+onAppointmentFormOpening: function(e) {
+    const form = e.form;
+    const appointmentData = e.appointmentData;
 
     function getTotalGuestsForDate(roomId, startDate, callback) {
         $.ajax({
