@@ -1,92 +1,61 @@
-// Fungsi untuk mengecek apakah dua rentang tanggal beririsan
-function isDateOverlap(start1, end1, start2, end2) {
-    return (new Date(start1) <= new Date(end2)) && (new Date(start2) <= new Date(end1));
-}
+appointmentTooltipTemplate: function(model) {
+    const booking = model.appointmentData;
+    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+    const roomAccupancy = room?.roomAccupancy || 0;
 
-// Fungsi untuk memastikan array selalu valid (menghindari null/undefined)
-function safeArray(arr) {
-    return Array.isArray(arr) ? arr : [];
-}
+    // Hitung total orang di booking
+    const guestCount = safeArray(booking.guest).length;
+    const familyCount = safeArray(booking.family).length;
+    const employeeCount = safeArray(booking.employee_id).length;
+    const totalPeople = guestCount + familyCount + employeeCount;
 
-// Fungsi untuk menghitung jumlah tamu per hari dalam rentang booking
-function getTotalGuestsPerDay(scheduler, roomId, startDate, endDate) {
-    let appointments = scheduler.getDataSource().items(); // Ambil semua booking yang sudah ada
-    let dailyGuestCount = {}; // Objek untuk menyimpan jumlah tamu per tanggal
+    // Hitung sisa kapasitas kamar
+    const remainingCapacity = roomAccupancy - totalPeople;
 
-    appointments.forEach(appointment => {
-        if (appointment.ghm_room_id === roomId) {
-            let bookingStart = new Date(appointment.startDate);
-            let bookingEnd = new Date(appointment.endDate);
+    // Format tanggal dengan aman
+    const formatDate = (date) => {
+        if (!date) return "No Date";
+        const d = new Date(date);
+        return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
+    };
 
-            for (let d = new Date(bookingStart); d <= bookingEnd; d.setDate(d.getDate() + 1)) {
-                let dateKey = d.toISOString().split("T")[0]; // Format YYYY-MM-DD
-                let guestCount = safeArray(appointment.guest).length;
-                let familyCount = safeArray(appointment.family).length;
-                let employeeCount = safeArray(appointment.employee_id).length;
-                let totalGuests = guestCount + familyCount + employeeCount;
+    // ID unik untuk tombol delete
+    const deleteButtonId = `delete-btn-${booking.id}`;
+    const tooltipHtml = `
+        <div>
+            <b>Subject: ${booking.text || "No Title"}</b><br>
+            ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
+            <b>Accupancy:</b> ${roomAccupancy} Person<br>
+            <b>Booked:</b> ${totalPeople} Person<br>
+            <b>Remaining:</b> ${remainingCapacity} Person<br>
+            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
+            <button id="${deleteButtonId}" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+    `;
 
-                dailyGuestCount[dateKey] = (dailyGuestCount[dateKey] || 0) + totalGuests;
-            }
+    // Tambahkan event listener untuk tombol delete setelah tooltip muncul
+    setTimeout(() => {
+        const deleteButton = document.getElementById(deleteButtonId);
+        if (deleteButton) {
+            deleteButton.addEventListener("click", function(event) {
+                event.stopPropagation(); // Mencegah popup scheduler terbuka
+                if (confirm("Are you sure you want to delete this booking?")) {
+                    sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
+                        .then(function(response) {
+                            if (response.status === "success") {
+                                alert("Booking deleted successfully!");
+                                $("#scheduler").dxScheduler("instance").getDataSource().reload();
+                            } else {
+                                alert("Error: " + (response.message || "Failed to delete booking."));
+                            }
+                        })
+                        .catch(function(error) {
+                            alert("Error: " + (error.responseText || "Unknown error."));
+                        });
+                }
+            });
         }
-    });
+    }, 500); // Timeout untuk memastikan DOM sudah siap
 
-    return dailyGuestCount;
-}
-
-// Event saat user ingin menambahkan booking baru
-onAppointmentAdding: function(e) {
-    const appointmentData = e.appointmentData;
-    let scheduler = e.component;
-
-    let guestCount = safeArray(appointmentData.guest).length;
-    let familyCount = safeArray(appointmentData.family).length;
-    let employeeCount = safeArray(appointmentData.employee_id).length;
-    let totalNewGuests = guestCount + familyCount + employeeCount;
-
-    let selectedRoom = appointmentData.ghm_room_id;
-    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
-
-    // Hitung total tamu per hari dalam rentang booking baru
-    let dailyGuestCount = getTotalGuestsPerDay(scheduler, selectedRoom, appointmentData.startDate, appointmentData.endDate);
-
-    // Cek apakah ada hari di mana jumlah tamu melebihi kapasitas kamar
-    let bookingStart = new Date(appointmentData.startDate);
-    let bookingEnd = new Date(appointmentData.endDate);
-
-    for (let d = new Date(bookingStart); d <= bookingEnd; d.setDate(d.getDate() + 1)) {
-        let dateKey = d.toISOString().split("T")[0]; // Format YYYY-MM-DD
-        let totalGuestsAfterAdding = (dailyGuestCount[dateKey] || 0) + totalNewGuests;
-
-        if (totalGuestsAfterAdding > roomCapacity) {
-            e.cancel = true; // Batalkan booking
-            DevExpress.ui.notify(`Kapasitas penuh pada ${dateKey}! (${dailyGuestCount[dateKey] || 0}/${roomCapacity})`, "error", 3000);
-            return;
-        }
-    }
-
-    // Serialize array sebelum dikirim
-    appointmentData.guest = JSON.stringify(appointmentData.guest);
-    appointmentData.family = JSON.stringify(appointmentData.family);
-
-    // Kirim data booking ke server
-    sendRequest(apiurl + "/" + modname, "POST", {
-        requestStatus: 0,
-        text: appointmentData.text,
-        description: appointmentData.description,
-        startDate: appointmentData.startDate,
-        endDate: appointmentData.endDate,
-        ghm_room_id: appointmentData.ghm_room_id,
-        employee_id: appointmentData.employee_id,
-        guest: appointmentData.guest,
-        family: appointmentData.family
-    }).then(function(response) {
-        if (response.status === 'success') {
-            e.component._dataSource.reload();
-            DevExpress.ui.notify("Booking berhasil dibuat!", "success", 2000);
-        } else {
-            DevExpress.ui.notify("Error: " + response.message, "error", 3000);
-        }
-    }).catch(function(error) {
-        DevExpress.ui.notify("Error: " + error.responseText, "error", 3000);
-    });
+    return tooltipHtml;
 }
