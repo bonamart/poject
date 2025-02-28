@@ -8,41 +8,29 @@ function safeArray(arr) {
     return Array.isArray(arr) ? arr : [];
 }
 
-// Fungsi untuk menghitung total tamu pada tanggal yang beririsan dengan booking baru
-function getTotalGuestsForDateLocally(scheduler, roomId, startDate, endDate) {
+// Fungsi untuk menghitung jumlah tamu per hari dalam rentang booking
+function getTotalGuestsPerDay(scheduler, roomId, startDate, endDate) {
     let appointments = scheduler.getDataSource().items(); // Ambil semua booking yang sudah ada
-    let totalGuests = 0;
+    let dailyGuestCount = {}; // Objek untuk menyimpan jumlah tamu per tanggal
 
     appointments.forEach(appointment => {
-        if (
-            appointment.ghm_room_id === roomId &&
-            isDateOverlap(appointment.startDate, appointment.endDate, startDate, endDate)
-        ) {
-            let guestCount = safeArray(appointment.guest).length;
-            let familyCount = safeArray(appointment.family).length;
-            let employeeCount = safeArray(appointment.employee_id).length;
-            totalGuests += guestCount + familyCount + employeeCount;
+        if (appointment.ghm_room_id === roomId) {
+            let bookingStart = new Date(appointment.startDate);
+            let bookingEnd = new Date(appointment.endDate);
+
+            for (let d = new Date(bookingStart); d <= bookingEnd; d.setDate(d.getDate() + 1)) {
+                let dateKey = d.toISOString().split("T")[0]; // Format YYYY-MM-DD
+                let guestCount = safeArray(appointment.guest).length;
+                let familyCount = safeArray(appointment.family).length;
+                let employeeCount = safeArray(appointment.employee_id).length;
+                let totalGuests = guestCount + familyCount + employeeCount;
+
+                dailyGuestCount[dateKey] = (dailyGuestCount[dateKey] || 0) + totalGuests;
+            }
         }
     });
 
-    return totalGuests;
-}
-
-// Fungsi validasi booking saat membuka form
-function validateBooking(form) {
-    let guestCount = safeArray(form.getEditor("guest")?.option("value")).length;
-    let familyCount = safeArray(form.getEditor("family")?.option("value")).length;
-    let employeeCount = safeArray(form.getEditor("employee_id")?.option("value")).length;
-    let totalGuests = guestCount + familyCount + employeeCount;
-
-    let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
-    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
-
-    let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
-
-    if (totalGuests > roomCapacity) {
-        DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
-    }
+    return dailyGuestCount;
 }
 
 // Event saat user ingin menambahkan booking baru
@@ -58,14 +46,22 @@ onAppointmentAdding: function(e) {
     let selectedRoom = appointmentData.ghm_room_id;
     let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
 
-    // Hitung total tamu yang sudah ada dalam rentang tanggal booking baru
-    let currentGuests = getTotalGuestsForDateLocally(scheduler, selectedRoom, appointmentData.startDate, appointmentData.endDate);
-    let totalGuestsAfterAdding = currentGuests + totalNewGuests;
+    // Hitung total tamu per hari dalam rentang booking baru
+    let dailyGuestCount = getTotalGuestsPerDay(scheduler, selectedRoom, appointmentData.startDate, appointmentData.endDate);
 
-    if (totalGuestsAfterAdding > roomCapacity) {
-        e.cancel = true; // Batalkan booking
-        DevExpress.ui.notify(`Kapasitas kamar penuh! (${currentGuests}/${roomCapacity})`, "error", 3000);
-        return;
+    // Cek apakah ada hari di mana jumlah tamu melebihi kapasitas kamar
+    let bookingStart = new Date(appointmentData.startDate);
+    let bookingEnd = new Date(appointmentData.endDate);
+
+    for (let d = new Date(bookingStart); d <= bookingEnd; d.setDate(d.getDate() + 1)) {
+        let dateKey = d.toISOString().split("T")[0]; // Format YYYY-MM-DD
+        let totalGuestsAfterAdding = (dailyGuestCount[dateKey] || 0) + totalNewGuests;
+
+        if (totalGuestsAfterAdding > roomCapacity) {
+            e.cancel = true; // Batalkan booking
+            DevExpress.ui.notify(`Kapasitas penuh pada ${dateKey}! (${dailyGuestCount[dateKey] || 0}/${roomCapacity})`, "error", 3000);
+            return;
+        }
     }
 
     // Serialize array sebelum dikirim
@@ -92,35 +88,5 @@ onAppointmentAdding: function(e) {
         }
     }).catch(function(error) {
         DevExpress.ui.notify("Error: " + error.responseText, "error", 3000);
-    });
-},
-
-// Event saat user ingin mengupdate booking
-onAppointmentUpdating: function(e) {
-    const appointmentData = e.newData;
-    appointmentData.id = e.oldData.id;
-
-    appointmentData.guest = JSON.stringify(appointmentData.guest);
-    appointmentData.family = JSON.stringify(appointmentData.family);
-
-    sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
-        text: appointmentData.text,
-        description: appointmentData.description,
-        startDate: appointmentData.startDate,
-        endDate: appointmentData.endDate,
-        ghm_room_id: appointmentData.ghm_room_id,
-        employee_id: appointmentData.employee_id,
-        guest: appointmentData.guest,
-        family: appointmentData.family,
-        id: appointmentData.id
-    }).then(function(response) {
-        if (response.status === 'success') {
-            e.component._dataSource.reload();
-            alert('Booking updated successfully!');
-        } else {
-            alert('Error: ' + response.message);
-        }
-    }).catch(function(error) {
-        alert('Error: ' + error.responseText);
     });
 }
