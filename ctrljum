@@ -1,0 +1,40 @@
+public function store(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'roomId' => 'required|integer',
+            'bookingDate' => 'required|date',
+            'totalPeople' => 'required|integer|min:1',
+        ]);
+
+        $room = DB::table('rooms')->where('id', $validated['roomId'])->first();
+        if (!$room) {
+            return response()->json(['message' => 'Room not found'], 404);
+        }
+
+        // Hitung total tamu yang sudah memesan pada hari yang sama
+        $totalGuests = DB::table('tbl_booking')
+            ->where('roomId', $validated['roomId'])
+            ->whereDate('bookingDate', $validated['bookingDate'])
+            ->sum('totalPeople');
+
+        // Periksa apakah kapasitas masih mencukupi
+        if (($totalGuests + $validated['totalPeople']) > $room->roomAccupancy) {
+            return response()->json(['message' => 'Room capacity exceeded for the selected date'], 400);
+        }
+
+        // Simpan booking baru jika kapasitas mencukupi
+        DB::table('tbl_booking')->insert([
+            'roomId' => $validated['roomId'],
+            'bookingDate' => $validated['bookingDate'],
+            'totalPeople' => $validated['totalPeople'],
+            'userId' => $this->getAuth()->id,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        return response()->json(['message' => 'Booking successfully created'], 201);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Error processing booking', 'error' => $e->getMessage()], 500);
+    }
+}
