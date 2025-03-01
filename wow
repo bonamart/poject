@@ -1,51 +1,7 @@
-// Event saat user ingin mengupdate booking
-onAppointmentUpdating: function(e) {
-    const appointmentData = e.newData;
-    appointmentData.id = e.oldData.id;
+const formatDateForDB = (date) => {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+};
 
-    // Pastikan guest dan family dikonversi ke JSON dengan aman
-    appointmentData.guest = appointmentData.guest ? JSON.stringify(appointmentData.guest) : "[]";
-    appointmentData.family = appointmentData.family ? JSON.stringify(appointmentData.family) : "[]";
-
-    // Cek apakah booking bertabrakan sebelum update
-    const isOverlapping = checkOverlap(appointmentData);
-    if (isOverlapping) {
-        alert("Booking conflict! Room already booked in this time range.");
-        e.cancel = true;
-        return;
-    }
-
-    sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
-        text: appointmentData.text,
-        description: appointmentData.description,
-        startDate: appointmentData.startDate,
-        endDate: appointmentData.endDate,
-        ghm_room_id: appointmentData.ghm_room_id,
-        employee_id: appointmentData.employee_id,
-        guest: appointmentData.guest,
-        family: appointmentData.family,
-        id: appointmentData.id
-    }).then(function(response) {
-        if (response.status === 'success') {
-            e.component.repaint(); // Lebih ringan daripada reload semua data
-            alert('Booking updated successfully!');
-        } else {
-            alert('Error: ' + response.message);
-        }
-    }).catch(function(error) {
-        alert('Error: ' + error.responseText);
-    });
-},
-
-// Fungsi untuk cek booking bertabrakan
-function checkOverlap(newBooking) {
-    const existingBookings = $("#scheduler").dxScheduler("instance").getDataSource().items();
-    return existingBookings.some(booking => {
-        if (booking.id === newBooking.id) return false; // Jangan cek diri sendiri
-        return (
-            booking.ghm_room_id === newBooking.ghm_room_id &&
-            new Date(newBooking.startDate) < new Date(booking.endDate) &&
-            new Date(newBooking.endDate) > new Date(booking.startDate)
-        );
-    });
-}
+appointmentData.startDate = formatDateForDB(appointmentData.startDate);
+appointmentData.endDate = formatDateForDB(appointmentData.endDate);
