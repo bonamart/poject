@@ -1,3 +1,9 @@
+const formatDate = (date) => {
+    if (!date) return "No Date";
+    return new Date(date).toLocaleDateString("en-CA"); // Format YYYY-MM-DD tanpa gangguan timezone
+};
+const remainingCapacity = Math.max(roomAccupancy - totalPeople, 0);
+
 appointmentTooltipTemplate: function(model) {
     const booking = model.appointmentData;
     const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
