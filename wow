@@ -1,18 +1,19 @@
-// Fungsi untuk reload scheduler
+// Fungsi untuk reload scheduler setelah update/delete
 function reloadScheduler() {
-    setTimeout(() => {
-        const schedulerElement = document.querySelector("#scheduler");
-        if (schedulerElement) {
-            const scheduler = $("#scheduler").dxScheduler("instance");
-            if (scheduler) {
-                scheduler.getDataSource().reload().done(() => scheduler.repaint());
-            } else {
-                console.error("Scheduler instance is undefined.");
-            }
+    const schedulerElement = document.getElementById("scheduler"); // Cek elemen ada atau tidak
+    if (schedulerElement) {
+        const scheduler = $("#scheduler").dxScheduler("instance"); // Ambil instance scheduler
+        if (scheduler) {
+            scheduler.getDataSource().reload().done(() => {
+                scheduler.repaint();
+                console.log("Scheduler reloaded successfully."); // Debugging
+            });
         } else {
-            console.error("Scheduler element not found in DOM.");
+            console.error("Scheduler instance is undefined.");
         }
-    }, 500); // Delay agar DOM diperbarui dulu
+    } else {
+        console.error("Scheduler element not found in DOM.");
+    }
 }
 
 // Fungsi untuk menghapus booking
@@ -23,7 +24,7 @@ function deleteBooking(bookingId) {
         .then(response => {
             if (response.status === "success") {
                 alert("Booking deleted successfully!");
-                reloadScheduler(); // Reload setelah sukses delete
+                reloadScheduler(); // Reload scheduler setelah sukses delete
             } else {
                 alert("Error: " + (response.message || "Failed to delete booking."));
             }
@@ -79,21 +80,21 @@ const appointmentTooltipTemplate = function(model) {
                 deleteBooking(booking.id);
             });
         }
-    }, 500); // Timeout untuk memastikan DOM sudah siap
+    }, 300); // Delay agar DOM siap sebelum menambahkan event listener
 
     return tooltipHtml;
 };
 
 // Event saat user ingin mengupdate booking
-onAppointmentUpdating: function(e) {
+function onAppointmentUpdating(e) {
     const appointmentData = e.newData;
-    appointmentData.id = e.oldData.id; // Ensure id is included in appointmentData for updating
+    appointmentData.id = e.oldData.id; // Pastikan ID tetap ada
 
     // Pastikan guest dan family dalam format JSON
     appointmentData.guest = Array.isArray(appointmentData.guest) ? JSON.stringify(appointmentData.guest) : appointmentData.guest;
     appointmentData.family = Array.isArray(appointmentData.family) ? JSON.stringify(appointmentData.family) : appointmentData.family;
 
-    console.log('Updating appointment with data:', appointmentData); // Debug log
+    console.log("Updating appointment with data:", appointmentData); // Debug log
 
     sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
         text: appointmentData.text,
@@ -104,17 +105,17 @@ onAppointmentUpdating: function(e) {
         employee_id: appointmentData.employee_id,
         guest: appointmentData.guest,
         family: appointmentData.family,
-        id: appointmentData.id // Ensure id is included in the request body
+        id: appointmentData.id
     }).then(function(response) {
-        console.log('Response from updating appointment:', response); // Debug log
-        if (response.status === 'success') {
+        console.log("Response from updating appointment:", response); // Debug log
+        if (response.status === "success") {
             reloadScheduler();
-            alert('Booking updated successfully!');
+            alert("Booking updated successfully!");
         } else {
-            alert('Error: ' + response.message);
+            alert("Error: " + response.message);
         }
     }).catch(function(error) {
-        console.error('Error from updating appointment:', error); // Debug log
-        alert('Error: ' + error.responseText);
+        console.error("Error from updating appointment:", error); // Debug log
+        alert("Error: " + error.responseText);
     });
 }
