@@ -1,61 +1,51 @@
-appointmentTooltipTemplate: function(model) {
-    const booking = model.appointmentData;
-    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomAccupancy = room?.roomAccupancy || 0;
+// Event saat user ingin mengupdate booking
+onAppointmentUpdating: function(e) {
+    const appointmentData = e.newData;
+    appointmentData.id = e.oldData.id;
 
-    // Hitung total orang di booking
-    const guestCount = safeArray(booking.guest).length;
-    const familyCount = safeArray(booking.family).length;
-    const employeeCount = safeArray(booking.employee_id).length;
-    const totalPeople = guestCount + familyCount + employeeCount;
+    // Pastikan guest dan family dikonversi ke JSON dengan aman
+    appointmentData.guest = appointmentData.guest ? JSON.stringify(appointmentData.guest) : "[]";
+    appointmentData.family = appointmentData.family ? JSON.stringify(appointmentData.family) : "[]";
 
-    // Hitung sisa kapasitas kamar
-    const remainingCapacity = roomAccupancy - totalPeople;
+    // Cek apakah booking bertabrakan sebelum update
+    const isOverlapping = checkOverlap(appointmentData);
+    if (isOverlapping) {
+        alert("Booking conflict! Room already booked in this time range.");
+        e.cancel = true;
+        return;
+    }
 
-    // Format tanggal dengan aman
-    const formatDate = (date) => {
-        if (!date) return "No Date";
-        const d = new Date(date);
-        return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
-    };
-
-    // ID unik untuk tombol delete
-    const deleteButtonId = `delete-btn-${booking.id}`;
-    const tooltipHtml = `
-        <div>
-            <b>Subject: ${booking.text || "No Title"}</b><br>
-            ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
-            <b>Accupancy:</b> ${roomAccupancy} Person<br>
-            <b>Booked:</b> ${totalPeople} Person<br>
-            <b>Remaining:</b> ${remainingCapacity} Person<br>
-            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-            <button id="${deleteButtonId}" class="btn btn-danger btn-sm">Delete</button>
-        </div>
-    `;
-
-    // Tambahkan event listener untuk tombol delete setelah tooltip muncul
-    setTimeout(() => {
-        const deleteButton = document.getElementById(deleteButtonId);
-        if (deleteButton) {
-            deleteButton.addEventListener("click", function(event) {
-                event.stopPropagation(); // Mencegah popup scheduler terbuka
-                if (confirm("Are you sure you want to delete this booking?")) {
-                    sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
-                        .then(function(response) {
-                            if (response.status === "success") {
-                                alert("Booking deleted successfully!");
-                                $("#scheduler").dxScheduler("instance").getDataSource().reload();
-                            } else {
-                                alert("Error: " + (response.message || "Failed to delete booking."));
-                            }
-                        })
-                        .catch(function(error) {
-                            alert("Error: " + (error.responseText || "Unknown error."));
-                        });
-                }
-            });
+    sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family,
+        id: appointmentData.id
+    }).then(function(response) {
+        if (response.status === 'success') {
+            e.component.repaint(); // Lebih ringan daripada reload semua data
+            alert('Booking updated successfully!');
+        } else {
+            alert('Error: ' + response.message);
         }
-    }, 500); // Timeout untuk memastikan DOM sudah siap
+    }).catch(function(error) {
+        alert('Error: ' + error.responseText);
+    });
+},
 
-    return tooltipHtml;
+// Fungsi untuk cek booking bertabrakan
+function checkOverlap(newBooking) {
+    const existingBookings = $("#scheduler").dxScheduler("instance").getDataSource().items();
+    return existingBookings.some(booking => {
+        if (booking.id === newBooking.id) return false; // Jangan cek diri sendiri
+        return (
+            booking.ghm_room_id === newBooking.ghm_room_id &&
+            new Date(newBooking.startDate) < new Date(booking.endDate) &&
+            new Date(newBooking.endDate) > new Date(booking.startDate)
+        );
+    });
 }
