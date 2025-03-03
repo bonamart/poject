@@ -83,6 +83,7 @@ $(() => {
                 confirmButtonText: 'Yes, submit it!'
               }).then((result) => {
                 if (result.isConfirmed) {
+                  e.component.addAppointment(e.appointmentData);
                   Swal.fire({
                     icon: 'success',
                     title: 'Submitted',
@@ -97,50 +98,7 @@ $(() => {
       ]);
     },
     onAppointmentAdding: function(e) {
-      Swal.fire({
-        title: 'Are you sure?',
-        text: 'Are you sure you want to add this appointment?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Yes, add it!'
-      }).then((result) => {
-        if (!result.isConfirmed) {
-          e.cancel = true;
-          return;
-        }
-        
-        const appointmentData = e.appointmentData;
-        let scheduler = e.component;
-
-        sendRequest(apiurl + "/" + modname, "POST", appointmentData)
-          .then(response => {
-            if (response.status === 'success') {
-              Swal.fire({
-                icon: 'success',
-                title: 'Added',
-                text: 'Appointment successfully added!',
-              });
-              e.component._dataSource.reload();
-            } else {
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: response.message,
-              });
-              e.cancel = true;
-            }
-          })
-          .catch(error => {
-            Swal.fire({
-              icon: 'error',
-              title: 'Error',
-              text: error.responseText,
-            });
-            e.cancel = true;
-          });
-      });
+      e.cancel = true; // Mencegah penambahan otomatis sebelum konfirmasi
     }
   });
 
