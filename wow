@@ -53,51 +53,42 @@ $(() => {
       return $('<div>').append([name, avatar, info]);
     },
     onAppointmentFormOpening(e) {
-      let defaultToolbarItems = e.popup.option('toolbarItems');
-      e.popup.option('toolbarItems', [
-        ...defaultToolbarItems,
-        {
-          widget: 'dxButton',
-          options: {
-            text: 'Save as Draft',
-            onClick: function () {
+      const popup = e.popup;
+      const toolbarItems = popup.option('toolbarItems');
+
+      // Cari tombol Done dan modifikasi
+      const doneButton = toolbarItems.find(item => item.options && item.options.text === 'Done');
+      if (doneButton) {
+        doneButton.options.onClick = function () {
+          Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to save this appointment as draft or submit it?',
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: 'Submit',
+            denyButtonText: 'Save as Draft',
+            cancelButtonText: 'Cancel',
+          }).then((result) => {
+            if (result.isConfirmed) {
+              e.component.addAppointment(e.appointmentData);
+              Swal.fire({
+                icon: 'success',
+                title: 'Submitted',
+                text: 'Appointment successfully submitted!',
+              });
+            } else if (result.isDenied) {
               Swal.fire({
                 icon: 'success',
                 title: 'Saved as Draft',
                 text: 'Appointment has been saved as draft.',
               });
             }
-          },
-          location: 'after'
-        },
-        {
-          widget: 'dxButton',
-          options: {
-            text: 'Submit',
-            onClick: function () {
-              Swal.fire({
-                title: 'Are you sure?',
-                text: 'Are you sure you want to submit this appointment?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, submit it!'
-              }).then((result) => {
-                if (result.isConfirmed) {
-                  e.component.addAppointment(e.appointmentData);
-                  Swal.fire({
-                    icon: 'success',
-                    title: 'Submitted',
-                    text: 'Appointment successfully submitted!',
-                  });
-                }
-              });
-            }
-          },
-          location: 'after'
-        }
-      ]);
+          });
+        };
+      }
+
+      popup.option('toolbarItems', toolbarItems);
     },
     onAppointmentAdding: function(e) {
       e.cancel = true; // Mencegah penambahan otomatis sebelum konfirmasi
