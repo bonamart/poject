@@ -1,41 +1,43 @@
 Swal.fire({
-    title: 'Are you sure?',
-    text: 'Do you want to store this booking?',
-    icon: 'warning',
+    title: 'What do you want to do?',
+    text: 'Choose an option for this booking',
+    icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Yes, Store it!',
-    cancelButtonText: 'Cancel',
+    confirmButtonText: 'Submit Now',
+    cancelButtonText: 'Save as Draft',
+    reverseButtons: true,
     customClass: {
-        confirmButton: 'btn btn-success',
-        cancelButton: 'btn btn-danger'
+        confirmButton: 'btn btn-primary',
+        cancelButton: 'btn btn-secondary'
     }
 }).then((result) => {
-    if (result.isConfirmed) {
-        sendRequest(apiurl + "/" + modname, "POST", {
-            requestStatus: 0,
-            text: appointmentData.text,
-            description: appointmentData.description,
-            startDate: appointmentData.startDate,
-            endDate: appointmentData.endDate,
-            ghm_room_id: appointmentData.ghm_room_id,
-            employee_id: appointmentData.employee_id,
-            guest: appointmentData.guest,
-            family: appointmentData.family
-        }).then(function(response) {
-            if (response.status === 'success') {
-                e.component._dataSource.reload();
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: 'Booking berhasil dibuat!',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: response.message });
-            }
-        }).catch(function(error) {
-            Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
-        });
-    }
+    let requestStatus = result.isConfirmed ? 1 : 0; // 1 = Submit, 0 = Draft
+    let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
+
+    sendRequest(apiurl + "/" + modname, "POST", {
+        requestStatus: requestStatus,
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family
+    }).then(function(response) {
+        if (response.status === 'success') {
+            e.component._dataSource.reload();
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: `Booking has been ${actionText}.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: response.message });
+        }
+    }).catch(function(error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
+    });
 });
