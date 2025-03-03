@@ -65,55 +65,37 @@ $(() => {
             text: 'Do you want to proceed?',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'No',
+            confirmButtonText: 'Submit Appointment',
+            cancelButtonText: 'Save as Draft',
           }).then((result) => {
-            if (result.isConfirmed) {
-              // Tambahkan tombol Save as Draft dan Submit setelah Done ditekan
-              popup.option('toolbarItems', [
-                ...toolbarItems,
-                {
-                  widget: 'dxButton',
-                  options: {
-                    text: 'Save as Draft',
-                    onClick: function () {
-                      Swal.fire({
-                        icon: 'success',
-                        title: 'Saved as Draft',
-                        text: 'Appointment has been saved as draft.',
-                      });
-                    }
-                  },
-                  location: 'after'
-                },
-                {
-                  widget: 'dxButton',
-                  options: {
-                    text: 'Submit',
-                    onClick: function () {
-                      Swal.fire({
-                        title: 'Are you sure?',
-                        text: 'Are you sure you want to submit this appointment?',
-                        icon: 'question',
-                        showCancelButton: true,
-                        confirmButtonColor: '#3085d6',
-                        cancelButtonColor: '#d33',
-                        confirmButtonText: 'Yes, submit it!'
-                      }).then((result) => {
-                        if (result.isConfirmed) {
-                          e.component.addAppointment(e.appointmentData);
-                          Swal.fire({
-                            icon: 'success',
-                            title: 'Submitted',
-                            text: 'Appointment successfully submitted!',
-                          });
-                        }
-                      });
-                    }
-                  },
-                  location: 'after'
-                }
-              ]);
+            if (!result.isConfirmed) {
+              // Simpan sebagai draft
+              const appointmentData = e.component.getAppointmentData();
+              appointmentData.status = 'draft';
+              sendRequest(apiurl + "/" + modname, "POST", appointmentData)
+                .then(response => {
+                  if (response.status === 'success') {
+                    Swal.fire({
+                      icon: 'success',
+                      title: 'Saved as Draft',
+                      text: 'Appointment has been saved as draft.',
+                    });
+                    e.component._dataSource.reload();
+                  } else {
+                    Swal.fire({
+                      icon: 'error',
+                      title: 'Error',
+                      text: response.message,
+                    });
+                  }
+                })
+                .catch(error => {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.responseText,
+                  });
+                });
             }
           });
         };
