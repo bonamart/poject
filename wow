@@ -1,41 +1,25 @@
 Swal.fire({
-    title: 'What do you want to do?',
-    text: 'Choose an option for this booking',
+    title: 'Are you sure?',
+    text: 'Do you want to proceed?',
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Submit Now',
-    cancelButtonText: 'Save as Draft',
-    reverseButtons: true
+    confirmButtonText: 'Submit Appointment',
+    cancelButtonText: 'Save as Draft'
 }).then((result) => {
-    let requestStatus = result.isConfirmed ? 1 : 0; 
-    let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
+    appointmentData.requestStatus = result.isConfirmed ? 1 : 0; // Tambahkan ini
+    console.log("Final Data Sent:", JSON.stringify(appointmentData, null, 2)); // Debugging
 
-    console.log("Request Status:", requestStatus); // Cek apakah status benar
-
-    sendRequest(apiurl + "/" + modname, "POST", {
-        requestStatus: requestStatus, // Pastikan terkirim
-        text: appointmentData.text,
-        description: appointmentData.description,
-        startDate: appointmentData.startDate,
-        endDate: appointmentData.endDate,
-        ghm_room_id: appointmentData.ghm_room_id,
-        employee_id: appointmentData.employee_id,
-        guest: appointmentData.guest,
-        family: appointmentData.family
-    }).then(function(response) {
-        if (response.status === 'success') {
-            e.component._dataSource.reload();
-            Swal.fire({
-                icon: 'success',
-                title: 'Success!',
-                text: `Booking has been ${actionText}.`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-        } else {
-            Swal.fire({ icon: 'error', title: 'Error', text: response.message });
-        }
-    }).catch(function(error) {
-        Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
-    });
+    sendRequest(apiurl + "/" + modname, "POST", appointmentData)
+        .then(response => {
+            if (response.status === 'success') {
+                let successMsg = result.isConfirmed ? 'Booking berhasil dibuat!' : 'Saved as Draft';
+                Swal.fire({ icon: 'success', title: successMsg, text: 'Appointment has been saved.' });
+                e.component._dataSource.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: response.message });
+            }
+        })
+        .catch(error => {
+            Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
+        });
 });
