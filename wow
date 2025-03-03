@@ -1,32 +1,169 @@
-$user = auth()->user();
-    $userId = $user->id;
-    $isAdmin = $user->isAdmin ?? false;
-    $employeeId = $user->employee_id ?? null;
-    $moduleId = $this->getModuleId($this->modulename);
+public function dashboard()
+{
+    try {
+        $user = auth()->user();
+        $userId = $user->id;
+        $employeeId = $user->employee_id ?? null;
+        $isAdmin = $user->isAdmin ?? false;
+        $moduleId = $this->getModuleId($this->modulename); // Pastikan ini sudah didefinisikan
 
-    $subquery = "(select TOP 1 CASE WHEN a.user_id='" . $userId . "' then 1 else 0 end 
-        from tbl_approverListReq l
-        left join tbl_approver a on l.approver_id=a.id
-        left join tbl_approvaltype r on a.approvaltype_id = r.id 
-        where l.ApprovalAction='1' 
-        and l.req_id = request_ghm.id and l.module_id = '" . $moduleId . "' 
-        and request_ghm.requestStatus='1'
-        order by a.sequence)";
+        // Subquery untuk isPendingOnMe
+        $subquery = "(SELECT TOP 1 
+            CASE WHEN a.user_id = '" . $userId . "' 
+            THEN 1 ELSE 0 END 
+            FROM tbl_approverListReq l
+            LEFT JOIN tbl_approver a ON l.approver_id = a.id
+            LEFT JOIN tbl_approvaltype r ON a.approvaltype_id = r.id 
+            WHERE l.ApprovalAction = '1' 
+            AND l.req_id = request_ghm.id 
+            AND l.module_id = '" . $moduleId . "' 
+            AND request_ghm.requestStatus = '1'
+            ORDER BY a.sequence)";
 
-    $requests = Ghm::query()
-        ->selectRaw("request_ghm.*, (" . $subquery . ") as isPendingOnMe")
-        ->where(function ($query) use ($subquery, $userId, $isAdmin, $employeeId, $moduleId) {
-            $query->whereRaw($subquery . " = 1")
-                ->orWhere(function ($query) use ($userId, $isAdmin, $employeeId, $moduleId) {
-                    if ($isAdmin) {
-                        $query->where("request_ghm.user_id", "!=", $userId)
-                            ->whereIn("request_ghm.requestStatus", [0,1,3,4]);
-                    } else {
-                        $query->where("tbl_assignment.employee_id", $employeeId)
-                            ->whereIn("request_ghm.requestStatus", [3]);
-                    }
-                })
-                ->orWhere("request_ghm.user_id", $userId);
-        })
-        ->with(['User', 'code', 'ghm_room'])
-        ->get();
+        // Query utama
+        $dataquery = Ghm::query();
+
+        // Join dengan tbl_assignment untuk non-admin
+        if (!$isAdmin) {
+            $dataquery->leftJoin('tbl_assignment', function ($join) use ($userId, $moduleId) {
+                $join->on('request_ghm.id', '=', 'tbl_assignment.req_id')
+                    ->where('tbl_assignment.module_id', $moduleId);
+            });
+        }
+
+        // Fetch data
+        $requests = $dataquery
+            ->selectRaw("
+                request_ghm.id,
+                codes.code, 
+                request_ghm.user_id,
+                request_ghm.description,
+                request_ghm_room.roomName,
+                request_ghm_room.bu,
+                request_ghm_room.sector,
+                request_ghm.ghm_room_id,            
+                request_ghm.text,
+                request_ghm.description,
+                request_ghm.requestStatus,
+                request_ghm.completeddate,
+                request_ghm.ticketStatus,
+                request_ghm.confirmationStatus,
+                request_ghm.confirmationRemarks,
+                request_ghm.startDate,
+                request_ghm.endDate,
+                request_ghm.created_at,
+                request_ghm.updated_at,
+                (SELECT STRING_AGG(emp.fullname, ', ')
+                FROM OPENJSON(request_ghm.employee_id) 
+                WITH (employee_id INT '$')
+                LEFT JOIN employee.tbl_employee AS emp
+                ON emp.id = employee_id
+                ) AS employee_fullname,
+                (SELECT STRING_AGG(value, ', ') FROM OPENJSON(request_ghm.guest)) AS guest,
+                (SELECT STRING_AGG(value, ', ') FROM OPENJSON(request_ghm.family)) AS family,
+                request_ghm_room.location_id, 
+                employee.tbl_location.Location, 
+                CASE WHEN request_ghm.user_id = '" . $userId . "' THEN 1 ELSE 0 END AS isMine,
+                " . $subquery . " AS isPendingOnMe
+            ")
+            ->leftJoin('codes', 'request_ghm.code_id', '=', 'codes.id')
+            ->leftJoin('request_ghm_room', 'request_ghm.ghm_room_id', '=', 'request_ghm_room.id')
+            ->leftJoin('employee.tbl_location', 'request_ghm_room.location_id', '=', 'employee.tbl_location.id')
+            ->with(['user', 'approverlist'])
+            ->where(function ($query) use ($subquery, $userId, $isAdmin, $employeeId, $moduleId) {
+                $query->whereRaw($subquery . " = 1")
+                    ->orWhere(function ($query) use ($userId, $isAdmin, $employeeId, $moduleId) {
+                        if ($isAdmin) {
+                            $query->where("request_ghm.user_id", "!=", $userId)
+                                ->whereIn("request_ghm.requestStatus", [0, 1, 3, 4]);
+                        } else {
+                            $query->where("tbl_assignment.employee_id", $employeeId)
+                                ->whereIn("request_ghm.requestStatus", [3]);
+                        }
+                    })
+                    ->orWhere("request_ghm.user_id", $userId);
+            })
+            ->orderBy(DB::raw($subquery), 'DESC')
+            ->orderByRaw("CASE WHEN request_ghm.user_id = '" . $userId . "' THEN 0 ELSE 1 END, request_ghm.created_at DESC")
+            ->get();
+
+        // Data tambahan untuk view
+        $rooms = Ghm_room::all();
+        $locations = Location::all();
+        $employees = Employee::with('Department')->get();
+        $departments = Department::all();
+
+        // Mapping employees
+        $emploMapped = $employees->map(function ($emp) {
+            return [
+                'id' => $emp->id,
+                'FullName' => $emp->FullName,
+                'SAPID' => $emp->SAPID,
+                'department_id' => $emp->department_id,
+            ];
+        });
+
+        // Mapping departments
+        $departmentsMapped = $departments->map(function ($dept) {
+            return [
+                'id' => $dept->id,
+                'DepartmentName' => $dept->DepartmentName,
+            ];
+        });
+
+        // Mapping booking data
+        $booking = $requests->map(function ($request) use ($rooms, $locations) {
+            $room = $rooms->firstWhere('id', $request->ghm_room_id);
+            $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
+
+            return [
+                'id' => $request->id,
+                'text' => $request->text ?? '',
+                'guest' => $request->guest ?? 0,
+                'family' => $request->family ?? 0,
+                'employee_id' => $request->employee_id ?? null,
+                'ticketstatus' => $request->ticketStatus ?? null,
+                'completeddate' => $request->completeddate ?? null,
+                'confirmationStatus' => $request->confirmationStatus ?? null,
+                'description' => $request->description ?? '',
+                'requestStatus' => $request->requestStatus ?? 0,
+                'startDate' => optional($request->startDate)->toIso8601String(),
+                'endDate' => optional($request->endDate)->toIso8601String(),
+                'code' => optional($request->code)->code ?? null,
+                'creator' => optional($request->user)->fullname ?? null,
+                'ghm_room_id' => $request->ghm_room_id,
+                'roomName' => $room->roomName ?? null,
+                'location' => $location->Location ?? null,
+                'isMine' => $request->isMine ?? 0,
+                'isPendingOnMe' => $request->isPendingOnMe ?? 0,
+            ];
+        });
+
+        // Mapping room data with locations
+        $roomsWithLocations = $rooms->map(function ($room) use ($locations) {
+            $location = $locations->firstWhere('id', $room->location_id);
+            return [
+                'text' => $room->roomName,
+                'id' => $room->id,
+                'roomAccupancy' => $room->roomAccupancy ?? 0,
+                'location' => $location ? $location->Location : null,
+                'color' => '#' . substr(md5($room->roomName), 0, 6),
+            ];
+        });
+
+        $uniqueLocations = $roomsWithLocations->pluck('location')->unique()->values();
+
+        // Return view dengan data
+        return view('dashboard.ghm_booking', [
+            'booking' => $booking,
+            'roomsWithLocations' => $roomsWithLocations,
+            'uniqueLocations' => $uniqueLocations,
+            'emplo' => $emploMapped,
+            'departments' => $departmentsMapped,
+        ]);
+
+    } catch (\Exception $e) {
+        // Handle error
+        return redirect()->back()->with('error', $e->getMessage());
+    }
+}
