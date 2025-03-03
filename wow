@@ -1,72 +1,157 @@
-function btnreqsubmit(reqid, mode) {
-    var btnSubmit = $('#btn-submit');
-    btnSubmit.prop('disabled', true);
-    var actionForm = (mode == 'approval') ? 'approval' : 'submission';
-    
-    var valapprovalAction = $('input[name="approvalaction"]:checked').val() || null;
+$(() => {
+  $('.scheduler').dxScheduler({
+    timeZone: 'America/Los_Angeles',
+    dataSource: data,
+    views: ['month'],
+    currentView: 'month',
+    currentDate: new Date(2021, 5, 2, 11, 30),
+    firstDayOfWeek: 1,
+    startDayHour: 8,
+    endDayHour: 18,
+    showAllDayPanel: false,
+    height: 710,
+    groups: ['employeeID'],
+    resources: [
+      {
+        fieldExpr: 'employeeID',
+        allowMultiple: false,
+        dataSource: employees,
+        label: 'Employee',
+      },
+    ],
+    dataCellTemplate(cellData, index, container) {
+      const { employeeID } = cellData.groups;
+      const currentTraining = getCurrentTraining(cellData.startDate.getDate(), employeeID);
 
-    if (mode == 'approval' && !valapprovalAction) {
-        alert('Please select approval action.');
-        btnSubmit.prop('disabled', false);
-        return false;
-    }
+      const wrapper = $('<div>')
+        .toggleClass(`employee-weekend-${employeeID}`, isWeekEnd(cellData.startDate)).appendTo(container)
+        .addClass(`employee-${employeeID}`)
+        .addClass('dx-template-wrapper');
 
-    var valApprovalType = (valapprovalAction == 3) ? 'Approved' :
-                          (valapprovalAction == 2) ? 'Reworked' :
-                          (valapprovalAction == 4) ? 'Rejected' : '';
+      wrapper.append($('<div>')
+        .text(cellData.text)
+        .addClass(currentTraining)
+        .addClass('day-cell'));
+    },
+    resourceCellTemplate(cellData) {
+      const name = $('<div>')
+        .addClass('name')
+        .css({ backgroundColor: cellData.color })
+        .append($('<h2>')
+          .text(cellData.text));
 
-    Swal.fire({
+      const avatar = $('<div>')
+        .addClass('avatar')
+        .html(`<img src=${cellData.data.avatar} alt="${cellData.text} photo">`)
+        .attr('title', cellData.text);
+
+      const info = $('<div>')
+        .addClass('info')
+        .css({ color: cellData.color })
+        .html(`Age: ${cellData.data.age}<br/><b>${cellData.data.discipline}</b>`);
+
+      return $('<div>').append([name, avatar, info]);
+    },
+    onAppointmentFormOpening(e) {
+      e.popup.option('toolbarItems', [
+        {
+          widget: 'dxButton',
+          options: {
+            text: 'Save as Draft',
+            onClick: function () {
+              Swal.fire({
+                icon: 'success',
+                title: 'Saved as Draft',
+                text: 'Appointment has been saved as draft.',
+              });
+            }
+          },
+          location: 'after'
+        },
+        {
+          widget: 'dxButton',
+          options: {
+            text: 'Submit',
+            onClick: function () {
+              Swal.fire({
+                title: 'Are you sure?',
+                text: 'Are you sure you want to submit this appointment?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, submit it!'
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'Submitted',
+                    text: 'Appointment successfully submitted!',
+                  });
+                }
+              });
+            }
+          },
+          location: 'after'
+        }
+      ]);
+    },
+    onAppointmentAdding: function(e) {
+      Swal.fire({
         title: 'Are you sure?',
-        text: "Are you sure you want to send this submission?",
+        text: 'Are you sure you want to add this appointment?',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
-        confirmButtonText: 'Yes, send it!'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            showLoadingScreen();
-
-            if (typeof apiurl === "undefined" || typeof modelclass === "undefined") {
-                alert("API URL atau modelclass tidak tersedia!");
-                btnSubmit.prop('disabled', false);
-                hideLoadingScreen();
-                return;
-            }
-
-            sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
-                requestStatus: 1,
-                action: actionForm,
-                approvalAction: parseInt(valapprovalAction) || 1,
-                approvalType: valApprovalType,
-            }).then(function(response) {
-                btnSubmit.prop('disabled', false);
-                hideLoadingScreen();
-                
-                if (response.status === 'error') {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: response.message || 'An error occurred.',
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Saved',
-                        text: 'The submission has been submitted.',
-                    });
-                    popup.hide();
-                }
-            });
-        } else {
-            btnSubmit.prop('disabled', false);
-            Swal.fire({
-                icon: 'error',
-                title: 'Cancelled',
-                text: 'The submission has been cancelled.',
-                confirmButtonColor: '#3085d6'
-            });
-            hideLoadingScreen();
+        confirmButtonText: 'Yes, add it!'
+      }).then((result) => {
+        if (!result.isConfirmed) {
+          e.cancel = true;
+          return;
         }
-    });
-}
+        
+        const appointmentData = e.appointmentData;
+        let scheduler = e.component;
+
+        sendRequest(apiurl + "/" + modname, "POST", appointmentData)
+          .then(response => {
+            if (response.status === 'success') {
+              Swal.fire({
+                icon: 'success',
+                title: 'Added',
+                text: 'Appointment successfully added!',
+              });
+              e.component._dataSource.reload();
+            } else {
+              Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: response.message,
+              });
+              e.cancel = true;
+            }
+          })
+          .catch(error => {
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: error.responseText,
+            });
+            e.cancel = true;
+          });
+      });
+    }
+  });
+
+  function isWeekEnd(date) {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+  }
+
+  function getCurrentTraining(date, employeeID) {
+    const result = (date + employeeID) % 3;
+    const currentTraining = `training-background-${result}`;
+    return currentTraining;
+  }
+});
