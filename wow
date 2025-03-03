@@ -1,14 +1,32 @@
-$requests = Ghm::query()
-    ->join('tbl_assignment', 'request_ghm.id', '=', 'tbl_assignment.request_id') // Join dengan tbl_assignment
-    ->where(function ($query) use ($userId, $isAdmin, $employeeId) {
-        if ($isAdmin) {
-            $query->where("request_ghm.user_id", "!=", $userId)
-                ->whereIn("request_ghm.requestStatus", [0, 1, 3, 4]);
-        } else {
-            $query->where("tbl_assignment.employee_id", $employeeId)
-                ->whereIn("request_ghm.requestStatus", [3]);
-        }
-    })
-    ->orWhere("request_ghm.user_id", $userId)
-    ->with(['User', 'code', 'ghm_room'])
-    ->get();
+$user = auth()->user();
+    $userId = $user->id;
+    $isAdmin = $user->isAdmin ?? false;
+    $employeeId = $user->employee_id ?? null;
+    $moduleId = $this->getModuleId($this->modulename);
+
+    $subquery = "(select TOP 1 CASE WHEN a.user_id='" . $userId . "' then 1 else 0 end 
+        from tbl_approverListReq l
+        left join tbl_approver a on l.approver_id=a.id
+        left join tbl_approvaltype r on a.approvaltype_id = r.id 
+        where l.ApprovalAction='1' 
+        and l.req_id = request_ghm.id and l.module_id = '" . $moduleId . "' 
+        and request_ghm.requestStatus='1'
+        order by a.sequence)";
+
+    $requests = Ghm::query()
+        ->selectRaw("request_ghm.*, (" . $subquery . ") as isPendingOnMe")
+        ->where(function ($query) use ($subquery, $userId, $isAdmin, $employeeId, $moduleId) {
+            $query->whereRaw($subquery . " = 1")
+                ->orWhere(function ($query) use ($userId, $isAdmin, $employeeId, $moduleId) {
+                    if ($isAdmin) {
+                        $query->where("request_ghm.user_id", "!=", $userId)
+                            ->whereIn("request_ghm.requestStatus", [0,1,3,4]);
+                    } else {
+                        $query->where("tbl_assignment.employee_id", $employeeId)
+                            ->whereIn("request_ghm.requestStatus", [3]);
+                    }
+                })
+                ->orWhere("request_ghm.user_id", $userId);
+        })
+        ->with(['User', 'code', 'ghm_room'])
+        ->get();
