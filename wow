@@ -1,121 +1,72 @@
-// Fungsi untuk reload scheduler setelah update/delete
-function reloadScheduler() {
-    const schedulerElement = document.getElementById("scheduler"); // Cek elemen ada atau tidak
-    if (schedulerElement) {
-        const scheduler = $("#scheduler").dxScheduler("instance"); // Ambil instance scheduler
-        if (scheduler) {
-            scheduler.getDataSource().reload().done(() => {
-                scheduler.repaint();
-                console.log("Scheduler reloaded successfully."); // Debugging
-            });
-        } else {
-            console.error("Scheduler instance is undefined.");
-        }
-    } else {
-        console.error("Scheduler element not found in DOM.");
+function btnreqsubmit(reqid, mode) {
+    var btnSubmit = $('#btn-submit');
+    btnSubmit.prop('disabled', true);
+    var actionForm = (mode == 'approval') ? 'approval' : 'submission';
+    
+    var valapprovalAction = $('input[name="approvalaction"]:checked').val() || null;
+
+    if (mode == 'approval' && !valapprovalAction) {
+        alert('Please select approval action.');
+        btnSubmit.prop('disabled', false);
+        return false;
     }
-}
 
-// Fungsi untuk menghapus booking
-function deleteBooking(bookingId) {
-    if (!confirm("Are you sure you want to delete this booking?")) return;
+    var valApprovalType = (valapprovalAction == 3) ? 'Approved' :
+                          (valapprovalAction == 2) ? 'Reworked' :
+                          (valapprovalAction == 4) ? 'Rejected' : '';
 
-    sendRequest(apiurl + "/" + modname + "/" + bookingId, "DELETE")
-        .then(response => {
-            if (response.status === "success") {
-                alert("Booking deleted successfully!");
-                reloadScheduler(); // Reload scheduler setelah sukses delete
-            } else {
-                alert("Error: " + (response.message || "Failed to delete booking."));
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "Are you sure you want to send this submission?",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, send it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            showLoadingScreen();
+
+            if (typeof apiurl === "undefined" || typeof modelclass === "undefined") {
+                alert("API URL atau modelclass tidak tersedia!");
+                btnSubmit.prop('disabled', false);
+                hideLoadingScreen();
+                return;
             }
-        })
-        .catch(error => {
-            alert("Error: " + (error.responseText || "Unknown error."));
-        });
-}
 
-// Template Tooltip untuk Scheduler
-const appointmentTooltipTemplate = function(model) {
-    const booking = model.appointmentData;
-    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomAccupancy = room?.roomAccupancy || 0;
-
-    // Hitung total orang di booking
-    const guestCount = safeArray(booking.guest).length;
-    const familyCount = safeArray(booking.family).length;
-    const employeeCount = safeArray(booking.employee_id).length;
-    const totalPeople = guestCount + familyCount + employeeCount;
-
-    // Hitung sisa kapasitas kamar
-    const remainingCapacity = roomAccupancy - totalPeople;
-
-    // Format tanggal dengan aman
-    const formatDate = (date) => {
-        if (!date) return "No Date";
-        const d = new Date(date);
-        return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
-    };
-
-    // ID unik untuk tombol delete
-    const deleteButtonId = `delete-btn-${booking.id}`;
-    const tooltipHtml = `
-        <div>
-            <b>Subject: ${booking.text || "No Title"}</b><br>
-            ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
-            <b>Accupancy:</b> ${roomAccupancy} Person<br>
-            <b>Booked:</b> ${totalPeople} Person<br>
-            <b>Remaining:</b> ${remainingCapacity} Person<br>
-            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-            <button id="${deleteButtonId}" class="btn btn-danger btn-sm">Delete</button>
-        </div>
-    `;
-
-    // Tambahkan event listener untuk tombol delete setelah tooltip muncul
-    setTimeout(() => {
-        const deleteButton = document.getElementById(deleteButtonId);
-        if (deleteButton) {
-            deleteButton.addEventListener("click", function(event) {
-                event.stopPropagation(); // Mencegah popup scheduler terbuka
-                event.preventDefault(); // Mencegah efek bawaan
-                deleteBooking(booking.id);
+            sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
+                requestStatus: 1,
+                action: actionForm,
+                approvalAction: parseInt(valapprovalAction) || 1,
+                approvalType: valApprovalType,
+            }).then(function(response) {
+                btnSubmit.prop('disabled', false);
+                hideLoadingScreen();
+                
+                if (response.status === 'error') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: response.message || 'An error occurred.',
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Saved',
+                        text: 'The submission has been submitted.',
+                    });
+                    popup.hide();
+                }
             });
-        }
-    }, 300); // Delay agar DOM siap sebelum menambahkan event listener
-
-    return tooltipHtml;
-};
-
-// Event saat user ingin mengupdate booking
-function onAppointmentUpdating(e) {
-    const appointmentData = e.newData;
-    appointmentData.id = e.oldData.id; // Pastikan ID tetap ada
-
-    // Pastikan guest dan family dalam format JSON
-    appointmentData.guest = Array.isArray(appointmentData.guest) ? JSON.stringify(appointmentData.guest) : appointmentData.guest;
-    appointmentData.family = Array.isArray(appointmentData.family) ? JSON.stringify(appointmentData.family) : appointmentData.family;
-
-    console.log("Updating appointment with data:", appointmentData); // Debug log
-
-    sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
-        text: appointmentData.text,
-        description: appointmentData.description,
-        startDate: appointmentData.startDate,
-        endDate: appointmentData.endDate,
-        ghm_room_id: appointmentData.ghm_room_id,
-        employee_id: appointmentData.employee_id,
-        guest: appointmentData.guest,
-        family: appointmentData.family,
-        id: appointmentData.id
-    }).then(function(response) {
-        console.log("Response from updating appointment:", response); // Debug log
-        if (response.status === "success") {
-            reloadScheduler();
-            alert("Booking updated successfully!");
         } else {
-            alert("Error: " + response.message);
+            btnSubmit.prop('disabled', false);
+            Swal.fire({
+                icon: 'error',
+                title: 'Cancelled',
+                text: 'The submission has been cancelled.',
+                confirmButtonColor: '#3085d6'
+            });
+            hideLoadingScreen();
         }
-    }).catch(function(error) {
-        console.error("Error from updating appointment:", error); // Debug log
-        alert("Error: " + error.responseText);
     });
 }
