@@ -5,17 +5,15 @@ Swal.fire({
     showCancelButton: true,
     confirmButtonText: 'Submit Now',
     cancelButtonText: 'Save as Draft',
-    reverseButtons: true,
-    customClass: {
-        confirmButton: 'btn btn-primary',
-        cancelButton: 'btn btn-secondary'
-    }
+    reverseButtons: true
 }).then((result) => {
-    let requestStatus = result.isConfirmed ? 1 : 0; // 1 = Submit, 0 = Draft
+    let requestStatus = result.isConfirmed ? 1 : 0; 
     let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
 
+    console.log("Request Status:", requestStatus); // Cek apakah status benar
+
     sendRequest(apiurl + "/" + modname, "POST", {
-        requestStatus: requestStatus,
+        requestStatus: requestStatus, // Pastikan terkirim
         text: appointmentData.text,
         description: appointmentData.description,
         startDate: appointmentData.startDate,
