@@ -6,25 +6,31 @@ $statusColors = [
     4 => '#007BFF', // Completed (biru)
 ];
 
-// Mapping room data dengan lokasi dan status terbaru
+// Mapping room data dengan lokasi dan request status terbaru
 $roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $statusColors) {
     $location = $locations->firstWhere('id', $room->location_id);
-    
+
     // Cari semua request yang sesuai dengan room_id
     $requests = $booking->where('ghm_room_id', $room->id);
-    
-    // Ambil request dengan tanggal terbaru berdasarkan `startDate`
+
+    // Ambil request terbaru berdasarkan `startDate`, jika ada
     $latestRequest = $requests->sortByDesc('startDate')->first();
-    
-    // Ambil status dari request terbaru, atau default ke 0 jika tidak ada
-    $requestStatus = optional($latestRequest)->requestStatus ?? 0;
+
+    // Ambil status dari request terbaru, jika tidak ada set default ke 0
+    $requestStatus = $latestRequest->requestStatus ?? 0;
+
+    // Debugging: Cek apakah semua requestStatus sudah sesuai
+    // dd($room->id, $requestStatus);
 
     return [
         'text' => $room->roomName,
         'id' => $room->id,
         'requestStatus' => $requestStatus,
         'roomAccupancy' => $room->roomAccupancy ?? 0,
-        'location' => $location ? $location->Location : null,
+        'location' => $location->Location ?? null,
         'color' => $statusColors[$requestStatus] ?? '#6C757D', // Default abu-abu jika status tidak cocok
     ];
 });
+
+// Debugging: Periksa hasil akhir
+// dd($roomsWithLocations);
