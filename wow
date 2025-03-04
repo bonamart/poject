@@ -1,30 +1,10 @@
-resourceCellTemplate: function(cellData) {
-    console.log(`Room: ${cellData.text}, Status: ${cellData.data.requestStatus}, Request Color: ${cellData.data.requestColor}, Room Color: ${cellData.data.roomColor}`);
-    
-    const name = $('<div>')
-        .addClass('name')
-        .append($('<h2>').text(cellData.text));
-
-    const roomAccupancy = $('<div>')
-        .addClass('roomAccupancy')
-        .html(`Bed: ${cellData.data.roomAccupancy}`);
-
-    // Gunakan warna yang benar sesuai konteks
-    let bgColor = cellData.data.roomColor; // Default warna untuk room
-    if (cellData.data.requestColor) {
-        bgColor = cellData.data.requestColor; // Jika ada warna request, pakai ini
-    }
-
-    const combinedColumn = $('<div>')
-        .addClass('combined-column')
-        .append(name, roomAccupancy)
-        .css({
-            backgroundColor: bgColor,
-            padding: '10px',
-            borderRadius: '5px',
-            color: '#fff',
-            textAlign: 'center'
-        });
-
-    return combinedColumn;
-}
+$booking = $requests->map(function ($request) use ($rooms, $locations, $statusColors) {
+    return [
+        'id' => $request->id,
+        'text' => $request->text ?? '',
+        'startDate' => optional($request->startDate)->toIso8601String(),
+        'endDate' => optional($request->endDate)->toIso8601String(),
+        'requestStatus' => $request->requestStatus ?? 0,
+        'requestColor' => isset($statusColors[$request->requestStatus]) ? $statusColors[$request->requestStatus] : '#6C757D', // Default warna abu-abu
+    ];
+});
