@@ -1,4 +1,4 @@
-// Mapping warna berdasarkan requestStatus
+// Mapping warna berdasarkan status permintaan
 $statusColors = [
     1 => '#FFC107', // Pending (kuning)
     2 => '#28A745', // Approved (hijau)
@@ -6,46 +6,31 @@ $statusColors = [
     4 => '#007BFF', // Completed (biru)
 ];
 
-// Mapping room data dengan lokasi dan request status terbaru
-$roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $statusColors) {
-    $location = $locations->firstWhere('id', $room->location_id);
-
-    // Cari semua request yang sesuai dengan room_id
-    $requests = $booking->where('ghm_room_id', $room->id);
-
-    // Ambil request terbaru berdasarkan `startDate`, jika ada
-    $latestRequest = $requests->sortByDesc('startDate')->first();
-
-    // Ambil status dari request terbaru, jika tidak ada set default ke 0
-    $requestStatus = $latestRequest->requestStatus ?? 0;
+// Mapping booking data
+$booking = $requests->map(function ($request) use ($rooms, $locations, $statusColors) {
+    $room = $rooms->firstWhere('id', $request->ghm_room_id);
+    $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
 
     return [
-        'text' => $room->roomName,
-        'id' => $room->id,
-        'requestStatus' => $requestStatus,
-        'roomAccupancy' => $room->roomAccupancy ?? 0,
+        'id' => $request->id,
+        'text' => $request->text ?? '',
+        'guest' => $request->guest ?? 0,
+        'family' => $request->family ?? 0,
+        'employee_id' => $request->employee_id ?? null,
+        'ticketstatus' => $request->ticketStatus ?? null,
+        'completeddate' => $request->completeddate ?? null,
+        'confirmationStatus' => $request->confirmationStatus ?? null,
+        'description' => $request->description ?? '',
+        'requestStatus' => $request->requestStatus ?? 0,
+        'startDate' => optional($request->startDate)->toIso8601String(),
+        'endDate' => optional($request->endDate)->toIso8601String(),
+        'code' => optional($request->code)->code ?? null,
+        'creator' => optional($request->user)->fullname ?? null,
+        'ghm_room_id' => $request->ghm_room_id,
+        'roomName' => $room->roomName ?? null,
         'location' => $location->Location ?? null,
-        'color' => $statusColors[$requestStatus] ?? '#6C757D', // Default abu-abu jika status tidak cocok
+        'isMine' => $request->isMine ?? 0,
+        'isPendingOnMe' => $request->isPendingOnMe ?? 0,
+        'color' => $statusColors[$request->requestStatus] ?? '#6C757D', // Default abu-abu jika status tidak cocok
     ];
 });
-
-// Debugging: Periksa hasil akhir apakah warna sudah benar
-dd($roomsWithLocations);
-
-
-resourceCellTemplate: function(cellData) {
-    console.log("Color:", cellData.data.color); // Debugging di Console Browser
-
-    const container = $('<div>')
-        .addClass('resource-cell')
-        .text(cellData.text)
-        .css({
-            backgroundColor: cellData.data.color,
-            color: '#fff', // Agar teks tetap terlihat
-            padding: '10px',
-            borderRadius: '5px',
-            textAlign: 'center'
-        });
-
-    return container;
-}
