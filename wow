@@ -1,10 +1,10 @@
-$booking = $requests->map(function ($request) use ($rooms, $locations, $statusColors) {
-    return [
-        'id' => $request->id,
-        'text' => $request->text ?? '',
-        'startDate' => optional($request->startDate)->toIso8601String(),
-        'endDate' => optional($request->endDate)->toIso8601String(),
-        'requestStatus' => $request->requestStatus ?? 0,
-        'requestColor' => isset($statusColors[$request->requestStatus]) ? $statusColors[$request->requestStatus] : '#6C757D', // Default warna abu-abu
-    ];
-});
+onAppointmentRendered: function(e) {
+    console.log("Rendered Appointment Data:", e.appointmentData); // Debugging Warna
+
+    if (e.appointmentData.requestColor) {
+        e.appointmentElement.css("background-color", e.appointmentData.requestColor);
+        e.appointmentElement.css("color", "#fff"); // Kontras teks agar terlihat jelas
+    } else {
+        e.appointmentElement.css("background-color", "#6C757D"); // Default abu-abu jika warna tidak ditemukan
+    }
+}
