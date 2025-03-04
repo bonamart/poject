@@ -34,3 +34,23 @@ $booking = $requests->map(function ($request) use ($rooms, $locations, $statusCo
         'color' => $statusColors[$request->requestStatus] ?? '#6C757D', // Default abu-abu jika status tidak cocok
     ];
 });
+
+// Mapping room data with locations
+$roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $statusColors) {
+    $location = $locations->firstWhere('id', $room->location_id);
+
+    // Cari semua request yang sesuai dengan room_id, lalu ambil yang terbaru
+    $requests = $booking->where('ghm_room_id', $room->id);
+    $latestRequest = $requests->sortByDesc('startDate')->first(); // Ambil request dengan startDate terbaru
+    
+    $requestStatus = optional($latestRequest)['requestStatus'] ?? 0;
+
+    return [
+        'text' => $room->roomName,
+        'id' => $room->id,
+        'requestStatus' => $requestStatus,
+        'roomAccupancy' => $room->roomAccupancy ?? 0,
+        'location' => $location ? $location->Location : null,
+        'color' => $statusColors[$requestStatus] ?? '#6C757D', // Default abu-abu jika status tidak cocok
+    ];
+});
