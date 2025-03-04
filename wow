@@ -19,9 +19,6 @@ $roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $s
     // Ambil status dari request terbaru, jika tidak ada set default ke 0
     $requestStatus = $latestRequest->requestStatus ?? 0;
 
-    // Debugging: Cek apakah semua requestStatus sudah sesuai
-    // dd($room->id, $requestStatus);
-
     return [
         'text' => $room->roomName,
         'id' => $room->id,
@@ -32,5 +29,23 @@ $roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $s
     ];
 });
 
-// Debugging: Periksa hasil akhir
-// dd($roomsWithLocations);
+// Debugging: Periksa hasil akhir apakah warna sudah benar
+dd($roomsWithLocations);
+
+
+resourceCellTemplate: function(cellData) {
+    console.log("Color:", cellData.data.color); // Debugging di Console Browser
+
+    const container = $('<div>')
+        .addClass('resource-cell')
+        .text(cellData.text)
+        .css({
+            backgroundColor: cellData.data.color,
+            color: '#fff', // Agar teks tetap terlihat
+            padding: '10px',
+            borderRadius: '5px',
+            textAlign: 'center'
+        });
+
+    return container;
+}
