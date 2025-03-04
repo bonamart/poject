@@ -1,63 +1,30 @@
-dataCellTemplate: function(cellData, index, container) {
-    const { ghm_room_id } = cellData.groups;
-    const currentTraining = getCurrentTraining(cellData.startDate.getDate(), ghm_room_id);
+// Mapping warna berdasarkan requestStatus
+$statusColors = [
+    1 => '#FFC107', // Pending (kuning)
+    2 => '#28A745', // Approved (hijau)
+    3 => '#DC3545', // Rejected (merah)
+    4 => '#007BFF', // Completed (biru)
+];
 
-    // Tentukan warna berdasarkan requestStatus
-    const requestStatusColors = {
-        1: "#FFC107", // Pending (kuning)
-        2: "#28A745", // Approved (hijau)
-        3: "#DC3545", // Rejected (merah)
-        4: "#007BFF"  // Completed (biru)
-    };
+// Mapping room data dengan lokasi dan status terbaru
+$roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $statusColors) {
+    $location = $locations->firstWhere('id', $room->location_id);
+    
+    // Cari semua request yang sesuai dengan room_id
+    $requests = $booking->where('ghm_room_id', $room->id);
+    
+    // Ambil request dengan tanggal terbaru berdasarkan `startDate`
+    $latestRequest = $requests->sortByDesc('startDate')->first();
+    
+    // Ambil status dari request terbaru, atau default ke 0 jika tidak ada
+    $requestStatus = optional($latestRequest)->requestStatus ?? 0;
 
-    const request = booking.find(item => item.ghm_room_id === ghm_room_id);
-    const requestStatus = request ? request.requestStatus : 0;
-    const statusColor = requestStatusColors[requestStatus] || "#6C757D"; // Default abu-abu
-
-    const wrapper = $("<div>")
-        .toggleClass(`employee-weekend-${ghm_room_id}`, isWeekEnd(cellData.startDate))
-        .appendTo(container)
-        .addClass(`employee-${ghm_room_id}`)
-        .addClass("dx-template-wrapper")
-        .css("background-color", statusColor);
-
-    wrapper.append($("<div>")
-        .text(cellData.text)
-        .addClass(currentTraining)
-        .addClass("day-cell"));
-},
-
-resourceCellTemplate: function(cellData) {
-    const name = $("<div>")
-        .addClass("name")                    
-        .append($("<h2>").text(cellData.text));
-
-    const roomAccupancy = $("<div>")
-        .addClass("roomAccupancy")
-        .html(`Bed: ${cellData.data.roomAccupancy}`);
-
-    // Tentukan warna berdasarkan jumlah bed
-    let bgColor;
-    if (cellData.data.roomAccupancy >= 4) {
-        bgColor = "#4caf50"; // Hijau untuk kamar dengan banyak bed
-    } else if (cellData.data.roomAccupancy === 3) {
-        bgColor = "#ff9800"; // Oranye untuk kapasitas sedang
-    } else if (cellData.data.roomAccupancy === 2) {
-        bgColor = "#ffeb3b"; // Kuning untuk kapasitas lebih kecil
-    } else {
-        bgColor = "#f44336"; // Merah untuk kapasitas sedikit
-    }
-
-    const combinedColumn = $("<div>")
-        .addClass("combined-column")
-        .append(name, roomAccupancy)
-        .css({
-            backgroundColor: bgColor,
-            padding: "10px",
-            borderRadius: "5px",
-            color: "#fff",
-            textAlign: "center"
-        });
-
-    return combinedColumn;
-}
+    return [
+        'text' => $room->roomName,
+        'id' => $room->id,
+        'requestStatus' => $requestStatus,
+        'roomAccupancy' => $room->roomAccupancy ?? 0,
+        'location' => $location ? $location->Location : null,
+        'color' => $statusColors[$requestStatus] ?? '#6C757D', // Default abu-abu jika status tidak cocok
+    ];
+});
