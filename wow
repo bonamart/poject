@@ -1,10 +1,106 @@
-onAppointmentRendered: function(e) {
-    console.log("Rendered Appointment Data:", e.appointmentData); // Debugging Warna
+appointmentTooltipTemplate: function(model) {
+    const booking = model.appointmentData;
+    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+    const roomAccupancy = room?.roomAccupancy || 0;
 
-    if (e.appointmentData.requestColor) {
-        e.appointmentElement.css("background-color", e.appointmentData.requestColor);
-        e.appointmentElement.css("color", "#fff"); // Kontras teks agar terlihat jelas
-    } else {
-        e.appointmentElement.css("background-color", "#6C757D"); // Default abu-abu jika warna tidak ditemukan
+    // Fungsi untuk memastikan array valid
+    function safeArray(value) {
+        return Array.isArray(value) ? value : (value ? [value] : []);
     }
-}
+
+    // Hitung total orang di booking
+    const guestCount = (safeArray(booking.guest) || []).length;
+    const familyCount = (safeArray(booking.family) || []).length;
+    const employeeCount = (safeArray(booking.employee_id) || []).length;
+    const totalPeople = guestCount + familyCount + employeeCount;
+
+    console.log("Total People:", totalPeople, "Type:", typeof totalPeople);
+
+    // Hitung sisa kapasitas kamar
+    const remainingCapacity = roomAccupancy - totalPeople;
+
+    // Format tanggal dengan aman
+    const formatDate = (date) => {
+        if (!date) return "No Date";
+        const d = new Date(date);
+        return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
+    };
+
+    // ID unik untuk tombol delete
+    const deleteButtonId = `delete-btn-${booking.id}`;
+    const tooltipHtml = `
+        <div>
+            <b>Purpose:</b> ${booking.text || "No Title"}<br>
+            ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
+            <b>Accupancy:</b> ${roomAccupancy} Person<br>
+            <b>Booked:</b> ${totalPeople || "No Data"} Person<br>
+            <b>Remaining:</b> ${remainingCapacity} Person<br>
+            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
+            <button id="${deleteButtonId}" class="btn btn-danger btn-sm">Delete</button>
+        </div>
+    `;
+
+    console.log("Final Tooltip Data:", tooltipHtml); // Debugging
+
+    // Gunakan MutationObserver untuk memastikan tombol tersedia di DOM
+    const observer = new MutationObserver((mutations) => {
+        const deleteButton = document.getElementById(deleteButtonId);
+        if (deleteButton) {
+            deleteButton.addEventListener("click", function(event) {
+                event.stopPropagation(); // Mencegah popup scheduler terbuka
+                event.preventDefault();
+
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "Do you really want to delete this booking?",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, delete it!',
+                    cancelButtonText: 'No, keep it'
+                }).then((result) => {
+                    if (!result.isConfirmed) return;
+
+                    sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
+                        .then(response => {
+                            if (response.status === "success") {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Deleted!',
+                                    text: 'Booking deleted successfully!',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                // reloadScheduler(); // Panggil fungsi untuk reload scheduler
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: response.message || "Failed to delete booking."
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: error.responseText || "Unknown error."
+                            });
+                        });
+                });
+            });
+            observer.disconnect(); // Hentikan observer setelah tombol ditemukan
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Gunakan setTimeout untuk memastikan tooltip diupdate
+    setTimeout(() => {
+        const tooltipContainer = document.getElementById("schedulerContainer");
+        if (tooltipContainer) {
+            tooltipContainer.innerHTML += tooltipHtml;
+        }
+    }, 100);
+
+    return tooltipHtml;
+},
