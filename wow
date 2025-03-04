@@ -6,47 +6,62 @@ $statusColors = [
     4 => '#007BFF', // Completed (biru)
 ];
 
-// Mapping booking data (MENAMBAHKAN WARNA DI SINI)
-$booking = $requests->map(function ($request) use ($rooms, $locations, $statusColors) {
-    $room = $rooms->firstWhere('id', $request->ghm_room_id);
-    $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
-
-    $requestStatus = $request->requestStatus ?? 0;
-
-    return [
-        'id' => $request->id,
-        'text' => $request->text ?? '',
-        'guest' => $request->guest ?? 0,
-        'family' => $request->family ?? 0,
-        'employee_id' => $request->employee_id ?? null,
-        'ticketstatus' => $request->ticketStatus ?? null,
-        'completeddate' => $request->completeddate ?? null,
-        'confirmationStatus' => $request->confirmationStatus ?? null,
-        'description' => $request->description ?? '',
-        'requestStatus' => $requestStatus,
-        'startDate' => optional($request->startDate)->toIso8601String(),
-        'endDate' => optional($request->endDate)->toIso8601String(),
-        'code' => optional($request->code)->code ?? null,
-        'creator' => optional($request->user)->fullname ?? null,
-        'ghm_room_id' => $request->ghm_room_id,
-        'roomName' => $room->roomName ?? null,
-        'location' => $location->Location ?? null,
-        'isMine' => $request->isMine ?? 0,
-        'isPendingOnMe' => $request->isPendingOnMe ?? 0,
-        'color' => $statusColors[$requestStatus] ?? '#6C757D', // Warna hanya untuk booking
-    ];
-});
-
-// Mapping room data with locations (TANPA WARNA)
-$roomsWithLocations = $rooms->map(function ($room) use ($locations) {
+$roomsWithLocations = $rooms->map(function ($room) use ($locations, $booking, $statusColors) {
     $location = $locations->firstWhere('id', $room->location_id);
+    $requests = $booking->where('ghm_room_id', $room->id);
+    $latestRequest = $requests->sortByDesc('startDate')->first();
+    
+    $requestStatus = optional($latestRequest)['requestStatus'] ?? 0;
+    $baseColor = $statusColors[$requestStatus] ?? '#6C757D';
 
     return [
         'text' => $room->roomName,
         'id' => $room->id,
+        'requestStatus' => $requestStatus,
         'roomAccupancy' => $room->roomAccupancy ?? 0,
         'location' => $location ? $location->Location : null,
+        'color' => $baseColor,
     ];
 });
 
-dd($booking, $roomsWithLocations);
+
+
+resourceCellTemplate: function(cellData) {
+    console.log("Color:", cellData.data.color); // Debugging di Console Browser
+    const name = $('<div>')
+        .addClass('name')                    
+        .append($('<h2>').text(cellData.text));
+
+    const roomAccupancy = $('<div>')
+        .addClass('roomAccupancy')
+        .html(`Bed: ${cellData.data.roomAccupancy}`);
+
+    // Ambil warna utama dari backend (berdasarkan requestStatus)
+    let baseColor = cellData.data.color || "#6C757D";
+
+    // Tentukan modifikasi warna berdasarkan roomAccupancy
+    let opacity;
+    if (cellData.data.roomAccupancy == 4) {
+        opacity = "1"; // Penuh, warna solid
+    } else if (cellData.data.roomAccupancy == 3) {
+        opacity = "0.8"; // Sedikit transparan
+    } else if (cellData.data.roomAccupancy == 2) {
+        opacity = "0.6"; // Lebih transparan
+    } else {
+        opacity = "0.4"; // Paling transparan
+    }
+
+    const combinedColumn = $('<div>')
+        .addClass('combined-column')
+        .append(name, roomAccupancy)
+        .css({
+            backgroundColor: baseColor,
+            opacity: opacity, // Mengatur transparansi
+            padding: '10px',
+            borderRadius: '5px',
+            color: '#fff',
+            textAlign: 'center'
+        });
+
+    return combinedColumn;
+}
