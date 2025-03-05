@@ -1,8 +1,25 @@
+function deserializeFromJSON(jsonString) {
+    try {
+        // Check if the input is a string and not empty
+        if (typeof jsonString === 'string' && jsonString.trim() !== '') {
+            const parsedData = JSON.parse(jsonString);
+            return parsedData;
+        } else {
+            console.warn('Invalid JSON string:', jsonString);
+            return []; // or return null, depending on your use case
+        }
+    } catch (error) {
+        console.error('Failed to parse JSON:', error);
+        return []; // or return null, depending on your use case
+    }
+}
+
+
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
 
-    console.log('Appointment Data:', appointmentData);
+    console.log('Appointment Data:', appointmentData); // Debug log
 
     if (appointmentData.employee_id && typeof appointmentData.employee_id === 'string') {
         appointmentData.employee_id = deserializeFromJSON(appointmentData.employee_id);
@@ -10,39 +27,19 @@ onAppointmentFormOpening: function(e) {
     if (appointmentData.guest && typeof appointmentData.guest === 'string') {
         appointmentData.guest = deserializeFromJSON(appointmentData.guest);
     } else if (!appointmentData.guest) {
-        appointmentData.guest = [];
+        appointmentData.guest = []; // Initialize with empty array if `guest` is `null` or `undefined`
     }
     if (appointmentData.family && typeof appointmentData.family === 'string') {
         appointmentData.family = deserializeFromJSON(appointmentData.family);
     } else if (!appointmentData.family) {
-        appointmentData.family = [];
+        appointmentData.family = []; // Initialize with empty array if `family` is `null` or `undefined`
     }
 
-    function validateBooking() {
-        let guestCount = (form.getEditor("guest")?.option("value") || []).length;
-        let familyCount = (form.getEditor("family")?.option("value") || []).length;
-
-        let employeeValue = form.getEditor("employee_id")?.option("value");
-        let employeeCount = Array.isArray(employeeValue) ? employeeValue.length : 0;
-
-        let totalGuests = guestCount + familyCount + employeeCount;
-        console.log("Total Guests:", totalGuests);
-
-        let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
-        let room = roomsWithLocations.find(room => room.id === selectedRoom);
-        let roomCapacity = room ? room.roomAccupancy : 0;
-
-        console.log("Room Capacity:", roomCapacity);
-
-        let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
-
-        if (totalGuests > roomCapacity) {
-            DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
-            doneButton.addClass("dx-state-disabled");
-        } else {
-            doneButton.removeClass("dx-state-disabled");
-        }
-    }
-
-    validateBooking();
+    // Rest of your code...
 }
+
+
+
+console.log('Employee ID:', appointmentData.employee_id);
+console.log('Guest:', appointmentData.guest);
+console.log('Family:', appointmentData.family);
