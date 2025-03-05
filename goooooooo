@@ -1,45 +1,53 @@
-function deserializeFromJSON(jsonString) {
+function deserializeFromJSON(data) {
     try {
-        // Check if the input is a string and not empty
-        if (typeof jsonString === 'string' && jsonString.trim() !== '') {
-            const parsedData = JSON.parse(jsonString);
-            return parsedData;
+        if (typeof data === 'string' && data.trim() !== '') {
+            // Check if the string is already valid JSON
+            if (data.startsWith('{') || data.startsWith('[')) {
+                return JSON.parse(data);
+            } else {
+                // If it's a plain string, wrap it in an array or object
+                return [data]; // or return { value: data };
+            }
+        } else if (Array.isArray(data)) {
+            return data; // Already an array, no need to parse
+        } else if (data && typeof data === 'object') {
+            return data; // Already an object, no need to parse
         } else {
-            console.warn('Invalid JSON string:', jsonString);
-            return []; // or return null, depending on your use case
+            console.warn('Invalid data format:', data);
+            return []; // Default to an empty array
         }
     } catch (error) {
-        console.error('Failed to parse JSON:', error);
-        return []; // or return null, depending on your use case
+        console.error('Failed to parse data:', error);
+        return []; // Default to an empty array
     }
 }
-
-
+==
 onAppointmentFormOpening: function(e) {
     const form = e.form;
     const appointmentData = e.appointmentData;
 
     console.log('Appointment Data:', appointmentData); // Debug log
 
-    if (appointmentData.employee_id && typeof appointmentData.employee_id === 'string') {
+    // Handle employee_id
+    if (!appointmentData.employee_id) {
+        appointmentData.employee_id = []; // Default to empty array if null
+    } else if (typeof appointmentData.employee_id === 'string') {
         appointmentData.employee_id = deserializeFromJSON(appointmentData.employee_id);
     }
-    if (appointmentData.guest && typeof appointmentData.guest === 'string') {
+
+    // Handle guest
+    if (!appointmentData.guest) {
+        appointmentData.guest = []; // Default to empty array if null
+    } else if (typeof appointmentData.guest === 'string') {
         appointmentData.guest = deserializeFromJSON(appointmentData.guest);
-    } else if (!appointmentData.guest) {
-        appointmentData.guest = []; // Initialize with empty array if `guest` is `null` or `undefined`
     }
-    if (appointmentData.family && typeof appointmentData.family === 'string') {
+
+    // Handle family
+    if (!appointmentData.family) {
+        appointmentData.family = []; // Default to empty array if null
+    } else if (typeof appointmentData.family === 'string') {
         appointmentData.family = deserializeFromJSON(appointmentData.family);
-    } else if (!appointmentData.family) {
-        appointmentData.family = []; // Initialize with empty array if `family` is `null` or `undefined`
     }
 
     // Rest of your code...
 }
-
-
-
-console.log('Employee ID:', appointmentData.employee_id);
-console.log('Guest:', appointmentData.guest);
-console.log('Family:', appointmentData.family);
