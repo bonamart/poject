@@ -1,216 +1,58 @@
-onAppointmentFormOpening: function(e) {
-    const form = e.form;
-    const appointmentData = e.appointmentData;
-    console.log('Appointment Data:', appointmentData);
+Swal.fire({
+    title: 'What do you want to do?',
+    text: 'Choose an option for this booking',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Submit Now',
+    cancelButtonText: 'Save as Draft',
+    reverseButtons: true
+}).then((result) => {
+    console.log("Swal result:", result);
+    let requestStatus = result.isConfirmed ? 1 : 0;
+    
+    return sendRequest(apiurl + "/" + modname, "POST", {
+        requestStatus: requestStatus,
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family
+    }).then((response) => {
+        console.log("Response from first request:", response);
+        let reqid = response.data.id;
+        console.log("Received reqid:", reqid);
 
-    // Fungsi untuk validasi kapasitas ruangan
-    function validateBooking() {
-        let guestCount = (form.getEditor("guest")?.option("value") || []).length;
-        let familyCount = (form.getEditor("family")?.option("value") || []).length;
-        let employeeCount = (form.getEditor("employee_id")?.option("value") || []).length;
-        let totalGuests = guestCount + familyCount + employeeCount;
-        console.log("Total guest:", totalGuests);
-
-        let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
-        let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
-        console.log("Total capacity:", roomCapacity);
-
-        if (totalGuests > roomCapacity) {
-            DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
-            return false; // Validasi gagal
-        }
-        return true; // Validasi berhasil
-    }
-
-    // Fungsi untuk menyimpan data
-    function saveData() {
-        if (!validateBooking()) {
-            return; // Hentikan proses jika validasi gagal
-        }
-
-        const formData = form.option('formData');
-        const requestStatus = formData.requestStatus || 0;
-
-        if (requestStatus !== 0) {
-            DevExpress.ui.notify("Data sudah disubmit dan tidak dapat diubah.", "error", 2000);
-            return;
-        }
-
-        // Kirim data ke server
-        saveAppointment(formData)
-            .then((response) => {
-                console.log("Response from server:", response);
-                let reqid = response.data.id;
-
-                if (requestStatus === 1) {
-                    // Jalankan POST kedua jika requestStatus == 1
-                    return sendRequest(`${apiurl}/submissionrequest/${reqid}/${modelclass}`, "POST", {
-                        requestStatus: 1,
-                        action: actionForm,
-                        approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
-                        approvalType: valApprovalType,
-                    });
-                }
-                return null; // Tidak ada request kedua jika "Save as Draft"
-            })
-            .then((response) => {
-                if (response && response.status === 'success') {
-                    e.component._dataSource.reload();
-                }
-                DevExpress.ui.notify("Data berhasil disimpan!", "success", 2000);
-                form.option('visible', false); // Tutup popup setelah data disimpan
-            })
-            .catch((error) => {
-                console.error("Error occurred:", error);
-                DevExpress.ui.notify("Terjadi kesalahan saat menyimpan data.", "error", 2000);
+        if (result.isConfirmed) {
+            console.log("Sending second request with reqid:", reqid);
+            return sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
+                requestStatus: 1,
+                action: actionForm,
+                approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
+                approvalType: valApprovalType,
             });
-    }
-
-    // Modifikasi tombol "Done"
-    let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
-    doneButton.off("click").on("click", function() {
-        saveData();
-    });
-
-    // Set timeout untuk validasi awal
-    setTimeout(validateBooking, 100);
-},
-
-onAppointmentAdding: function(e) {
-    const appointmentData = e.appointmentData;
-    let scheduler = e.component;
-
-    // Validasi kapasitas ruangan
-    let guestCount = safeArray(appointmentData.guest).length;
-    let familyCount = safeArray(appointmentData.family).length;
-    let employeeCount = safeArray(appointmentData.employee_id).length;
-    let totalNewGuests = guestCount + familyCount + employeeCount;
-
-    let selectedRoom = appointmentData.ghm_room_id;
-    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
-    let dailyGuestCount = getTotalGuestsPerDay(scheduler, selectedRoom, appointmentData.startDate, appointmentData.endDate);
-
-    let bookingStart = new Date(appointmentData.startDate);
-    let bookingEnd = new Date(appointmentData.endDate);
-
-    for (let d = new Date(bookingStart); d <= bookingEnd; d.setDate(d.getDate() + 1)) {
-        let dateKey = d.toISOString().split("T")[0]; // Format YYYY-MM-DD
-        let totalGuestsAfterAdding = (dailyGuestCount[dateKey] || 0) + totalNewGuests;
-
-        if (totalGuestsAfterAdding > roomCapacity) {
-            e.cancel = true; // Batalkan booking
-            DevExpress.ui.notify(`Kapasitas penuh pada ${dateKey}! (${dailyGuestCount[dateKey] || 0}/${roomCapacity})`, "error", 3000);
-            return;
+        } else {
+            return null;
         }
-    }
+    }).then((response) => {
+        if (response) {
+            console.log("Response from second request:", response);
+            if (response.status === 'success') {
+                e.component._dataSource.reload();
+            }
+        }
 
-    // Konfirmasi dengan SweetAlert
-    Swal.fire({
-        title: 'What do you want to do?',
-        text: 'Choose an option for this booking',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Submit Now',
-        cancelButtonText: 'Save as Draft',
-        reverseButtons: true
-    }).then((result) => {
-        let requestStatus = result.isConfirmed ? 1 : 0;
-        let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
-
-        saveAppointment(appointmentData)
-            .then((response) => {
-                console.log("Response from server:", response);
-                let reqid = response.data.id;
-
-                if (requestStatus === 1) {
-                    // Jalankan POST kedua jika requestStatus == 1
-                    return sendRequest(`${apiurl}/submissionrequest/${reqid}/${modelclass}`, "POST", {
-                        requestStatus: 1,
-                        action: actionForm,
-                        approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
-                        approvalType: valApprovalType,
-                    });
-                }
-                return null; // Tidak ada request kedua jika "Save as Draft"
-            })
-            .then((response) => {
-                if (response && response.status === 'success') {
-                    e.component._dataSource.reload();
-                }
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: `Booking has been ${actionText}.`,
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            })
-            .catch((error) => {
-                console.error("Error occurred:", error);
-                Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
-            });
+        Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: `Booking has been ${result.isConfirmed ? "submitted" : "saved as draft"}.`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }).catch((error) => {
+        console.error("Error occurred:", error);
+        Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
     });
-},
-
-onAppointmentUpdating: function(e) {
-    const appointmentData = e.newData;
-
-    // Cek requestStatus
-    if (appointmentData.requestStatus !== 0) {
-        DevExpress.ui.notify("Data sudah disubmit dan tidak dapat diubah.", "error", 2000);
-        e.cancel = true; // Batalkan pembaruan
-        return;
-    }
-
-    // Format tanggal untuk database
-    const formatDateForDB = (date) => {
-        const d = new Date(date);
-        return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
-    };
-
-    appointmentData.startDate = formatDateForDB(appointmentData.startDate);
-    appointmentData.endDate = formatDateForDB(appointmentData.endDate);
-    appointmentData.id = e.oldData.id; // Pastikan id disertakan
-
-    // Konfirmasi dengan SweetAlert
-    Swal.fire({
-        title: 'What do you want to do?',
-        text: 'Choose an option for this booking',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Submit Now',
-        cancelButtonText: 'Save as Draft',
-        reverseButtons: true
-    }).then((result) => {
-        let requestStatus = result.isConfirmed ? 1 : 0;
-        let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
-
-        saveAppointment(appointmentData, true) // Gunakan true untuk update
-            .then((response) => {
-                if (response.status === 'success') {
-                    e.component._dataSource.reload();
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: `Booking has been ${actionText}.`,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: response.message });
-                }
-            })
-            .catch((error) => {
-                console.error("Error occurred:", error);
-                Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
-            });
-    });
-},
-
-// Fungsi untuk menyimpan atau memperbarui appointment
-function saveAppointment(data, isUpdate = false) {
-    const url = isUpdate ? `${apiurl}/${modname}/${data.id}` : `${apiurl}/${modname}`;
-    const method = isUpdate ? "PUT" : "POST";
-
-    return sendRequest(url, method, data);
-}
+});
