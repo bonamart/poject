@@ -8,13 +8,13 @@ Swal.fire({
     reverseButtons: true
 }).then((result) => {
     console.log("Swal result:", result); // Log the result object
-    let requestStatus = result.isConfirmed ? 1 : 0; // Correct assignment
+    let requestStatus = result.isConfirmed ? 1 : 0; // Menentukan status request
     let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
 
-    console.log("Request Status:", requestStatus); // Cek apakah status benar
+    console.log("Request Status:", requestStatus);
 
-    // Jalankan POST pertama untuk kedua opsi
-    sendRequest(apiurl + "/" + modname, "POST", {
+    // Jalankan POST pertama
+    return sendRequest(apiurl + "/" + modname, "POST", {
         requestStatus: requestStatus,
         text: appointmentData.text,
         description: appointmentData.description,
@@ -24,41 +24,40 @@ Swal.fire({
         employee_id: appointmentData.employee_id,
         guest: appointmentData.guest,
         family: appointmentData.family
-    }).then(() => {
+    }).then((response) => {
+        console.log("Response from first request:", response);
+        
+        // Ambil reqid dari response pertama
+        let reqid = response.data.id;
+        
+        // Jika pengguna memilih "Submit Now", jalankan POST kedua
         if (result.isConfirmed) {
-            // Hanya jalankan POST kedua jika Submit Now diklik
-            sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
+            return sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
                 requestStatus: 1,
                 action: actionForm,
-                approvalAction: parseInt(valapprovalAction) || 1,
+                approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
                 approvalType: valApprovalType,
-            }).then(function(response) {
-                if (response.status === 'success') {
-                    e.component._dataSource.reload();
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: `Booking has been ${actionText}.`,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: response.message });
-                }
-            }).catch(function(error) {
-                Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
             });
         } else {
-            // Jika hanya Save as Draft, tampilkan pesan sukses langsung
-            Swal.fire({
-                icon: 'success',
-                title: 'Success!',
-                text: `Booking has been ${actionText}.`,
-                timer: 2000,
-                showConfirmButton: false
-            });
+            return null; // Tidak ada request kedua jika memilih "Save as Draft"
         }
-    }).catch(function(error) {
-        Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
+    }).then((response) => {
+        // Jika POST kedua dilakukan dan sukses
+        if (response && response.status === 'success') {
+            e.component._dataSource.reload();
+        }
+
+        // Tampilkan pesan sukses setelah semua proses selesai
+        Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: `Booking has been ${actionText}.`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }).catch((error) => {
+        // Tangani error untuk POST pertama atau kedua
+        console.error("Error occurred:", error);
+        Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
     });
 });
