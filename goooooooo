@@ -1,241 +1,64 @@
-appointmentTooltipTemplate: function(model) {
-    const booking = model.appointmentData;
-    console.log("Booking Data:", booking); // Debugging
+Swal.fire({
+    title: 'What do you want to do?',
+    text: 'Choose an option for this booking',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Submit Now',
+    cancelButtonText: 'Save as Draft',
+    reverseButtons: true
+}).then((result) => {
+    console.log("Swal result:", result); // Log the result object
+    let requestStatus = result.isConfirmed ? 1 : 0; // Correct assignment
+    let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
 
-    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomAccupancy = room?.roomAccupancy || 0;
+    console.log("Request Status:", requestStatus); // Cek apakah status benar
 
-    // Hitung total orang di booking
-    const guestCount = safeArray(booking.guest).length;
-    const familyCount = safeArray(booking.family).length;
-    const employeeCount = safeArray(booking.employee_id).length;
-    const totalPeople = guestCount + familyCount + employeeCount;
-
-    // Hitung sisa kapasitas kamar
-    const remainingCapacity = roomAccupancy - totalPeople;
-
-    // Format tanggal dengan aman
-    const formatDate = (date) => {
-        if (!date) return "No Date";
-        const d = new Date(date);
-        return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
-    };
-
-    // ID unik untuk tombol
-    const actionButtonId = `action-btn-${booking.id}`;
-    const isCancelable = Number(booking.requestStatus) === 1 || Number(booking.requestStatus) === 2;
-    console.log("isCancelable:", isCancelable, "requestStatus:", booking.requestStatus); // Debugging
-
-    const buttonLabel = isCancelable ? "Cancel" : "Delete";
-    const buttonClass = isCancelable ? "btn-warning" : "btn-danger";
-
-    const tooltipHtml = `
-        <div>
-            <b>Purpose: ${booking.text || "No Title"}</b><br>
-            ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
-            <b>Accupancy:</b> ${roomAccupancy} Person<br>
-            <b>Booked:</b> ${totalPeople} Person<br>
-            <b>Remaining:</b> ${remainingCapacity} Person<br>
-            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-            <button id="${actionButtonId}" class="btn ${buttonClass} btn-sm">${buttonLabel}</button>
-        </div>
-    `;
-
-    // Gunakan MutationObserver untuk memastikan tombol tersedia di DOM
-    const observer = new MutationObserver((mutations) => {
-        const actionButton = document.getElementById(actionButtonId);
-        if (actionButton) {
-            actionButton.addEventListener("click", function(event) {
-                event.stopPropagation(); // Mencegah popup scheduler terbuka
-                event.preventDefault();
-
-                Swal.fire({
-                    title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
-                    text: isCancelable 
-                        ? "Do you really want to cancel this booking?"
-                        : "Do you really want to delete this booking?",
-                    icon: isCancelable ? 'warning' : 'error',
-                    showCancelButton: true,
-                    confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
-                    cancelButtonText: 'No, keep it'
-                }).then((result) => {
-                    if (!result.isConfirmed) return;
-
-                    if (isCancelable) {
-                        // Kirim request ke API Update
-                        sendRequest(apiurl + "/" + modname + "/" + booking.id, "PATCH", { requestStatus: 0 })
-                            .then(response => {
-                                if (response.status === "success") {
-                                    Swal.fire({
-                                        icon: 'success',
-                                        title: 'Booking Canceled!',
-                                        text: 'Booking has been successfully set to Canceled (requestStatus = 0).',
-                                        timer: 2000,
-                                        showConfirmButton: false
-                                    });
-                                    // reloadScheduler(); // Panggil fungsi untuk reload scheduler
-                                } else {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error',
-                                        text: response.message || "Failed to update booking."
-                                    });
-                                }
-                            })
-                            .catch(error => {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error',
-                                    text: error.responseText || "Unknown error."
-                                });
-                            });
-                    } else {
-                        // Kirim request DELETE untuk menghapus booking
-                        sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
-                            .then(response => {
-                                if (response.status === "success") {
-                                    Swal.fire({
-                                        icon: 'success',
-                                        title: 'Deleted!',
-                                        text: 'Booking deleted successfully!',
-                                        timer: 2000,
-                                        showConfirmButton: false
-                                    });
-                                    // reloadScheduler(); // Panggil fungsi untuk reload scheduler
-                                } else {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error',
-                                        text: response.message || "Failed to delete booking."
-                                    });
-                                }
-                            })
-                            .catch(error => {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error',
-                                    text: error.responseText || "Unknown error."
-                                });
-                            });
-                    }
-                });
-            });
-            observer.disconnect(); // Hentikan observer setelah tombol ditemukan
-        }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return tooltipHtml;
-},
-
-==================================================
-appointmentTooltipTemplate: function(model) {
-    const booking = model.appointmentData;
-    
-    if (!booking.id) {
-        console.warn("Booking ID not found:", booking);
-        return "<div><b>Error:</b> Booking data not found!</div>";
-    }
-
-    console.log("Booking Data:", booking); // Debugging ID Booking
-
-    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomAccupancy = room?.roomAccupancy || 0;
-
-    // Hitung total orang di booking
-    const guestCount = safeArray(booking.guest).length;
-    const familyCount = safeArray(booking.family).length;
-    const employeeCount = safeArray(booking.employee_id).length;
-    const totalPeople = guestCount + familyCount + employeeCount;
-
-    // Hitung sisa kapasitas kamar
-    const remainingCapacity = roomAccupancy - totalPeople;
-
-    // Format tanggal dengan aman
-    const formatDate = (date) => {
-        if (!date) return "No Date";
-        const d = new Date(date);
-        return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
-    };
-
-    // ID unik untuk tombol
-    const actionButtonId = `action-btn-${booking.id}`;
-    const isCancelable = Number(booking.requestStatus) === 1 || Number(booking.requestStatus) === 2;
-    console.log("isCancelable:", isCancelable, "requestStatus:", booking.requestStatus); // Debugging
-
-    const buttonLabel = isCancelable ? "Cancel" : "Delete";
-    const buttonClass = isCancelable ? "btn-warning" : "btn-danger";
-
-    const tooltipHtml = `
-        <div>
-            <b>Purpose: ${booking.text || "No Title"}</b><br>
-            ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
-            <b>Accupancy:</b> ${roomAccupancy} Person<br>
-            <b>Booked:</b> ${totalPeople} Person<br>
-            <b>Remaining:</b> ${remainingCapacity} Person<br>
-            <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-            <button data-id="${booking.id}" data-status="${booking.requestStatus}" 
-                class="btn ${buttonClass} btn-sm action-btn">${buttonLabel}</button>
-        </div>
-    `;
-
-    return tooltipHtml;
-};
-
-// 🛠 Event Delegation untuk Menangani Klik Tombol
-document.body.addEventListener("click", function(event) {
-    if (event.target.classList.contains("action-btn")) {
-        event.stopPropagation();
-        event.preventDefault();
-
-        const bookingId = event.target.getAttribute("data-id");
-        const requestStatus = Number(event.target.getAttribute("data-status"));
-        const isCancelable = requestStatus === 1 || requestStatus === 2;
-
-        Swal.fire({
-            title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
-            text: isCancelable 
-                ? "Do you really want to cancel this booking?"
-                : "Do you really want to delete this booking?",
-            icon: isCancelable ? 'warning' : 'error',
-            showCancelButton: true,
-            confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
-            cancelButtonText: 'No, keep it'
-        }).then((result) => {
-            if (!result.isConfirmed) return;
-
-            const method = isCancelable ? "PATCH" : "DELETE";
-            const data = isCancelable ? { requestStatus: 0 } : null;
-
-            sendRequest(apiurl + "/" + modname + "/" + bookingId, method, data)
-                .then(response => {
-                    if (response.status === "success") {
-                        Swal.fire({
-                            icon: 'success',
-                            title: isCancelable ? 'Booking Canceled!' : 'Deleted!',
-                            text: isCancelable 
-                                ? 'Booking has been successfully set to Canceled (requestStatus = 0).'
-                                : 'Booking deleted successfully!',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                        // reloadScheduler(); // Panggil fungsi untuk reload scheduler
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: response.message || "Failed to update booking."
-                        });
-                    }
-                })
-                .catch(error => {
+    // Jalankan POST pertama untuk kedua opsi
+    sendRequest(apiurl + "/" + modname, "POST", {
+        requestStatus: requestStatus,
+        text: appointmentData.text,
+        description: appointmentData.description,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        ghm_room_id: appointmentData.ghm_room_id,
+        employee_id: appointmentData.employee_id,
+        guest: appointmentData.guest,
+        family: appointmentData.family
+    }).then(() => {
+        if (result.isConfirmed) {
+            // Hanya jalankan POST kedua jika Submit Now diklik
+            sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
+                requestStatus: 1,
+                action: actionForm,
+                approvalAction: parseInt(valapprovalAction) || 1,
+                approvalType: valApprovalType,
+            }).then(function(response) {
+                if (response.status === 'success') {
+                    e.component._dataSource.reload();
                     Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: error.responseText || "Unknown error."
+                        icon: 'success',
+                        title: 'Success!',
+                        text: `Booking has been ${actionText}.`,
+                        timer: 2000,
+                        showConfirmButton: false
                     });
-                });
-        });
-    }
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message });
+                }
+            }).catch(function(error) {
+                Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
+            });
+        } else {
+            // Jika hanya Save as Draft, tampilkan pesan sukses langsung
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: `Booking has been ${actionText}.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    }).catch(function(error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error.responseText });
+    });
 });
