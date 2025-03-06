@@ -3,22 +3,31 @@ onAppointmentFormOpening: function(e) {
     const appointmentData = e.appointmentData;
     console.log('Appointment Data:', appointmentData);
 
+    // Fungsi untuk validasi kapasitas ruangan
     function validateBooking() {
         let guestCount = (form.getEditor("guest")?.option("value") || []).length;
         let familyCount = (form.getEditor("family")?.option("value") || []).length;
         let employeeCount = (form.getEditor("employee_id")?.option("value") || []).length;
         let totalGuests = guestCount + familyCount + employeeCount;
-        console.log("total guest", totalGuests);
+        console.log("Total guest:", totalGuests);
+
         let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
         let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
-        console.log("total Kaps", roomCapacity);
-        let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
+        console.log("Total capacity:", roomCapacity);
+
         if (totalGuests > roomCapacity) {
             DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
+            return false; // Validasi gagal
         }
+        return true; // Validasi berhasil
     }
 
+    // Fungsi untuk menyimpan data
     function saveData() {
+        if (!validateBooking()) {
+            return; // Hentikan proses jika validasi gagal
+        }
+
         const formData = form.option('formData');
         const requestStatus = formData.requestStatus || 0;
 
@@ -27,42 +36,34 @@ onAppointmentFormOpening: function(e) {
             return;
         }
 
-        // Simpan data ke server
-        sendRequest(apiurl + "/" + modname, "POST", {
-            requestStatus: requestStatus,
-            text: formData.text,
-            description: formData.description,
-            startDate: formData.startDate,
-            endDate: formData.endDate,
-            ghm_room_id: formData.ghm_room_id,
-            employee_id: formData.employee_id,
-            guest: formData.guest,
-            family: formData.family
-        }).then((response) => {
-            console.log("Response from first request:", response);
-            let reqid = response.data.id;
+        // Kirim data ke server
+        saveAppointment(formData)
+            .then((response) => {
+                console.log("Response from server:", response);
+                let reqid = response.data.id;
 
-            if (requestStatus === 1) {
-                // Jika requestStatus == 1, jalankan POST kedua
-                return sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
-                    requestStatus: 1,
-                    action: actionForm,
-                    approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
-                    approvalType: valApprovalType,
-                });
-            } else {
-                return null; // Tidak ada request kedua jika memilih "Save as Draft"
-            }
-        }).then((response) => {
-            if (response && response.status === 'success') {
-                e.component._dataSource.reload();
-            }
-            DevExpress.ui.notify("Data berhasil disimpan!", "success", 2000);
-            form.option('visible', false); // Tutup popup setelah data disimpan
-        }).catch((error) => {
-            console.error("Error occurred:", error);
-            DevExpress.ui.notify("Terjadi kesalahan saat menyimpan data.", "error", 2000);
-        });
+                if (requestStatus === 1) {
+                    // Jalankan POST kedua jika requestStatus == 1
+                    return sendRequest(`${apiurl}/submissionrequest/${reqid}/${modelclass}`, "POST", {
+                        requestStatus: 1,
+                        action: actionForm,
+                        approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
+                        approvalType: valApprovalType,
+                    });
+                }
+                return null; // Tidak ada request kedua jika "Save as Draft"
+            })
+            .then((response) => {
+                if (response && response.status === 'success') {
+                    e.component._dataSource.reload();
+                }
+                DevExpress.ui.notify("Data berhasil disimpan!", "success", 2000);
+                form.option('visible', false); // Tutup popup setelah data disimpan
+            })
+            .catch((error) => {
+                console.error("Error occurred:", error);
+                DevExpress.ui.notify("Terjadi kesalahan saat menyimpan data.", "error", 2000);
+            });
     }
 
     // Modifikasi tombol "Done"
@@ -71,23 +72,24 @@ onAppointmentFormOpening: function(e) {
         saveData();
     });
 
-    form.option('items', [
-        // ... (kode form items yang sudah ada)
-    ]);
-
+    // Set timeout untuk validasi awal
     setTimeout(validateBooking, 100);
 },
 
 onAppointmentAdding: function(e) {
     const appointmentData = e.appointmentData;
     let scheduler = e.component;
+
+    // Validasi kapasitas ruangan
     let guestCount = safeArray(appointmentData.guest).length;
     let familyCount = safeArray(appointmentData.family).length;
     let employeeCount = safeArray(appointmentData.employee_id).length;
     let totalNewGuests = guestCount + familyCount + employeeCount;
+
     let selectedRoom = appointmentData.ghm_room_id;
     let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
     let dailyGuestCount = getTotalGuestsPerDay(scheduler, selectedRoom, appointmentData.startDate, appointmentData.endDate);
+
     let bookingStart = new Date(appointmentData.startDate);
     let bookingEnd = new Date(appointmentData.endDate);
 
@@ -102,7 +104,7 @@ onAppointmentAdding: function(e) {
         }
     }
 
-    // Kirim data booking ke server
+    // Konfirmasi dengan SweetAlert
     Swal.fire({
         title: 'What do you want to do?',
         text: 'Choose an option for this booking',
@@ -112,52 +114,103 @@ onAppointmentAdding: function(e) {
         cancelButtonText: 'Save as Draft',
         reverseButtons: true
     }).then((result) => {
-        console.log("Swal result:", result); // Log the result object
-        let requestStatus = result.isConfirmed ? 1 : 0; // Menentukan status request
+        let requestStatus = result.isConfirmed ? 1 : 0;
         let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
-        console.log("Request Status:", requestStatus);
-        return sendRequest(apiurl + "/" + modname, "POST", {
-            requestStatus: requestStatus,
-            text: appointmentData.text,
-            description: appointmentData.description,
-            startDate: appointmentData.startDate,
-            endDate: appointmentData.endDate,
-            ghm_room_id: appointmentData.ghm_room_id,
-            employee_id: appointmentData.employee_id,
-            guest: appointmentData.guest,
-            family: appointmentData.family
-        }).then((response) => {
-            console.log("Response from first request:", response);
-            // Ambil reqid dari response pertama
-            let reqid = response.data.id;
-            // Jika pengguna memilih "Submit Now", jalankan POST kedua
-            if (result.isConfirmed) {
-                return sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
-                    requestStatus: 1,
-                    action: actionForm,
-                    approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
-                    approvalType: valApprovalType,
+
+        saveAppointment(appointmentData)
+            .then((response) => {
+                console.log("Response from server:", response);
+                let reqid = response.data.id;
+
+                if (requestStatus === 1) {
+                    // Jalankan POST kedua jika requestStatus == 1
+                    return sendRequest(`${apiurl}/submissionrequest/${reqid}/${modelclass}`, "POST", {
+                        requestStatus: 1,
+                        action: actionForm,
+                        approvalAction: isNaN(parseInt(valapprovalAction)) ? 1 : parseInt(valapprovalAction),
+                        approvalType: valApprovalType,
+                    });
+                }
+                return null; // Tidak ada request kedua jika "Save as Draft"
+            })
+            .then((response) => {
+                if (response && response.status === 'success') {
+                    e.component._dataSource.reload();
+                }
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: `Booking has been ${actionText}.`,
+                    timer: 2000,
+                    showConfirmButton: false
                 });
-            } else {
-                return null; // Tidak ada request kedua jika memilih "Save as Draft"
-            }
-        }).then((response) => {
-            // Jika POST kedua dilakukan dan sukses
-            if (response && response.status === 'success') {
-                e.component._dataSource.reload();
-            }
-            // Tampilkan pesan sukses setelah semua proses selesai
-            Swal.fire({
-                icon: 'success',
-                title: 'Success!',
-                text: `Booking has been ${actionText}.`,
-                timer: 2000,
-                showConfirmButton: false
+            })
+            .catch((error) => {
+                console.error("Error occurred:", error);
+                Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
             });
-        }).catch((error) => {
-            // Tangani error untuk POST pertama atau kedua
-            console.error("Error occurred:", error);
-            Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
-        });
     });
 },
+
+onAppointmentUpdating: function(e) {
+    const appointmentData = e.newData;
+
+    // Cek requestStatus
+    if (appointmentData.requestStatus !== 0) {
+        DevExpress.ui.notify("Data sudah disubmit dan tidak dapat diubah.", "error", 2000);
+        e.cancel = true; // Batalkan pembaruan
+        return;
+    }
+
+    // Format tanggal untuk database
+    const formatDateForDB = (date) => {
+        const d = new Date(date);
+        return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+    };
+
+    appointmentData.startDate = formatDateForDB(appointmentData.startDate);
+    appointmentData.endDate = formatDateForDB(appointmentData.endDate);
+    appointmentData.id = e.oldData.id; // Pastikan id disertakan
+
+    // Konfirmasi dengan SweetAlert
+    Swal.fire({
+        title: 'What do you want to do?',
+        text: 'Choose an option for this booking',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Submit Now',
+        cancelButtonText: 'Save as Draft',
+        reverseButtons: true
+    }).then((result) => {
+        let requestStatus = result.isConfirmed ? 1 : 0;
+        let actionText = result.isConfirmed ? 'submitted' : 'saved as draft';
+
+        saveAppointment(appointmentData, true) // Gunakan true untuk update
+            .then((response) => {
+                if (response.status === 'success') {
+                    e.component._dataSource.reload();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: `Booking has been ${actionText}.`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: response.message });
+                }
+            })
+            .catch((error) => {
+                console.error("Error occurred:", error);
+                Swal.fire({ icon: 'error', title: 'Error', text: error.responseText || 'An error occurred' });
+            });
+    });
+},
+
+// Fungsi untuk menyimpan atau memperbarui appointment
+function saveAppointment(data, isUpdate = false) {
+    const url = isUpdate ? `${apiurl}/${modname}/${data.id}` : `${apiurl}/${modname}`;
+    const method = isUpdate ? "PUT" : "POST";
+
+    return sendRequest(url, method, data);
+}
