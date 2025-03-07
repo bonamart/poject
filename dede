@@ -1,28 +1,31 @@
-$booking = $requests->filter(function ($request) use ($totalPeopleArray) {
-    return ($totalPeopleArray[$request->id] ?? 0) > 0; // Hanya menyertakan data dengan totalPeople > 0
-})->map(function ($request) use ($rooms, $locations, $totalPeopleArray, $statusColors) {
-    $room = $rooms->firstWhere('id', $request->ghm_room_id);
-    $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
-    $totalPeople = $totalPeopleArray[$request->id] ?? 0;
+function validateBooking() {
+    let guestCount = (form.getEditor("guest")?.option("value") || []).length;
+    let familyCount = (form.getEditor("family")?.option("value") || []).length;
+    let employeeCount = (form.getEditor("employee")?.option("value") || []).length;
+    let totalGuests = guestCount + familyCount + employeeCount;
+    console.log("total guest", totalGuests);
+    let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
+    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
+    console.log("total Kaps", roomCapacity);        
+    let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
+    if (totalGuests > roomCapacity) {
+        DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
+    }
+}
 
-    return [
-        'id' => $request->id,
-        'bu' => $request->bu,
-        'sector' => $request->sector,
-        'text' => $request->text ?? '',
-        'guest' => $request->guest ?? 0,
-        'family' => $request->family ?? 0,
-        'employee' => $request->employee ?? null,
-        'description' => $request->description ?? '',
-        'requestStatus' => $request->requestStatus ?? 0,
-        'startDate' => optional($request->startDate)->toIso8601String(),
-        'endDate' => optional($request->endDate)->toIso8601String(),
-        'code' => optional($request->code)->code ?? null,
-        'creator' => optional($request->User)->fullname ?? null,
-        'ghm_room_id' => $request->ghm_room_id,
-        'roomName' => optional($room)->roomName ?? null,
-        'location' => optional($location)->Location ?? null,
-        'totalPeople' => $totalPeople,
-        'requestColor' => isset($statusColors[$request->requestStatus]) ? $statusColors[$request->requestStatus] : '#6C757D', // Default warna abu-abu
-    ];
+// Tambahkan validasi sebelum form disubmit
+form.option("onValidated", function(e) {
+    let guestCount = (form.getEditor("guest")?.option("value") || []).length;
+    let familyCount = (form.getEditor("family")?.option("value") || []).length;
+    let employeeCount = (form.getEditor("employee")?.option("value") || []).length;
+    let totalGuests = guestCount + familyCount + employeeCount;
+
+    if (totalGuests < 1) {
+        e.isValid = false; // Mencegah submit
+        DevExpress.ui.notify("Total guests harus lebih dari 0!", "error", 2000);
+    }
 });
+
+form.option('items', [ 
+    // Form items tetap seperti sebelumnya
+]);
