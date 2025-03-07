@@ -1,57 +1,160 @@
-appointmentTooltipTemplate: function(model) {
-    const booking = model.appointmentData;
-    console.log("Booking Data:", booking); // Debugging
+$(document).ready(function () {
+    // Inisialisasi scheduler
+    var schedulerInstance = $(".scheduler").dxScheduler({
+        timeZone: 'Asia/Makassar',
+        dataSource: booking,
+        repaintChangesOnly: true,
+        views: ['month'],
+        currentView: 'month',
+        currentDate: new Date(),
+        firstDayOfWeek: 1,
+        startDayHour: 10,
+        endDayHour: 22,
+        colorExpr: "color",
+        showAllDayPanel: false,
+        height: 710,
+        groups: ['ghm_room_id'],
+        resources: [
+            {
+                fieldExpr: 'ghm_room_id',
+                allowMultiple: false,
+                dataSource: dataSource,
+                label: 'Room Name',
+            },
+        ],
+        editing: {
+            refreshMode: 'reshape',
+            mode: 'cell',
+            allowAdding: true,
+            allowUpdating: true,
+            allowDeleting: true,
+        },
+        appointmentTooltipTemplate: function (model) {
+            const booking = model.appointmentData;
+            console.log("Booking Data:", booking);
 
-    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-    const roomOccupancy = room?.roomOccupancy || 0;
+            const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+            const roomOccupancy = room?.roomOccupancy || 0;
+            const guestCount = safeArray(booking.guest).length;
+            const familyCount = safeArray(booking.family).length;
+            const employeeCount = safeArray(booking.employee).length;
+            const totalPeople = guestCount + familyCount + employeeCount;
+            const remainingCapacity = roomOccupancy - totalPeople;
 
-    // Hitung total orang di booking
-    const guestCount = safeArray(booking.guest).length;
-    const familyCount = safeArray(booking.family).length;
-    const employeeCount = safeArray(booking.employee).length;
-    const totalPeople = guestCount + familyCount + employeeCount;
+            const formatDate = (date) => {
+                if (!date) return "No Date";
+                const d = new Date(date);
+                return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
+            };
 
-    // Hitung sisa kapasitas kamar
-    const remainingCapacity = roomOccupancy - totalPeople;
+            const actionButtonId = `action-btn-${booking.id}`;
+            const isCancelable = Number(booking.requestStatus) === 1 || Number(booking.requestStatus) === 2;
+            console.log("isCancelable:", isCancelable, "requestStatus:", booking.requestStatus);
 
-    // Simpan data ini ke dalam `appointmentData`
-    booking.roomOccupancy = roomOccupancy;
-    booking.totalPeople = totalPeople;
-    booking.remainingCapacity = remainingCapacity;
+            const buttonLabel = isCancelable ? "Cancel" : "Delete";
+            const buttonClass = isCancelable ? "btn-warning" : "btn-danger";
 
-    return `
-        <div>
-            <b>Purpose:</b> ${booking.text || "No Title"}<br>
-            <b>Occupancy:</b> ${roomOccupancy} Person<br>
-            <b>Booked:</b> ${totalPeople} Person<br>
-            <b>Remaining:</b> ${remainingCapacity} Person<br>
-            <b>Created By:</b> ${booking.creator || "No Name"}<br>
-        </div>
-    `;
-}
+            const tooltipHtml = `
+                <div>
+                    <b>Purpose (Text): ${booking.text || "No Title"}</b><br>
+                    ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
+                    <b>Occupancy:</b> ${roomOccupancy} Person<br>
+                    <b>Booked:</b> ${totalPeople} Person<br>
+                    <b>Remaining:</b> ${remainingCapacity} Person<br>
+                    <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
+                    <button id="${actionButtonId}" class="btn ${buttonClass} btn-sm">${buttonLabel}</button>
+                </div>
+            `;
 
+            // Gunakan MutationObserver untuk memastikan tombol tersedia di DOM
+            const observer = new MutationObserver((mutations) => {
+                const actionButton = document.getElementById(actionButtonId);
+                if (actionButton) {
+                    actionButton.addEventListener("click", function (event) {
+                        event.stopPropagation();
+                        event.preventDefault();
 
+                        Swal.fire({
+                            title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
+                            text: isCancelable
+                                ? "Do you really want to cancel this booking?"
+                                : "Do you really want to delete this booking?",
+                            icon: isCancelable ? 'warning' : 'error',
+                            showCancelButton: true,
+                            confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
+                            cancelButtonText: 'No, keep it'
+                        }).then((result) => {
+                            if (!result.isConfirmed) return;
 
-formOpening: function(e) {
-    const appointmentData = e.appointmentData || {};
+                            if (isCancelable) {
+                                sendRequest(apiurl + "/" + modname + "/" + booking.id, "PATCH", { requestStatus: 0 })
+                                    .then(response => {
+                                        if (response.status === "success") {
+                                            Swal.fire({
+                                                icon: 'success',
+                                                title: 'Booking Canceled!',
+                                                text: 'Booking has been successfully set to Canceled.',
+                                                timer: 2000,
+                                                showConfirmButton: false
+                                            });
+                                            repaintScheduler(); // 🔄 Repaint Scheduler setelah update
+                                        } else {
+                                            Swal.fire({
+                                                icon: 'error',
+                                                title: 'Error',
+                                                text: response.message || "Failed to update booking."
+                                            });
+                                        }
+                                    })
+                                    .catch(error => {
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Error',
+                                            text: error.responseText || "Unknown error."
+                                        });
+                                    });
+                            } else {
+                                sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
+                                    .then(response => {
+                                        if (response.status === "success") {
+                                            Swal.fire({
+                                                icon: 'success',
+                                                title: 'Deleted!',
+                                                text: 'Booking deleted successfully!',
+                                                timer: 2000,
+                                                showConfirmButton: false
+                                            });
+                                            repaintScheduler(); // 🔄 Repaint Scheduler setelah hapus event
+                                        } else {
+                                            Swal.fire({
+                                                icon: 'error',
+                                                title: 'Error',
+                                                text: response.message || "Failed to delete booking."
+                                            });
+                                        }
+                                    })
+                                    .catch(error => {
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Error',
+                                            text: error.responseText || "Unknown error."
+                                        });
+                                    });
+                            }
+                        });
+                    });
+                    observer.disconnect(); // Hentikan observer setelah tombol ditemukan
+                }
+            });
 
-    e.form.option("items", [
-        {
-            label: { text: 'Room' },
-            editorType: 'dxSelectBox',
-            dataField: 'ghm_room_id',
-            helpText: `Occupancy: ${appointmentData.roomOccupancy || 0} | 
-                       Booked: ${appointmentData.totalPeople || 0} | 
-                       Remaining: ${appointmentData.remainingCapacity || 0}`,
-            editorOptions: {
-                readOnly: false,
-                dataSource: roomsWithLocations,
-                displayExpr: function(item) {
-                    return item ? `${item.location} | ${item.text}` : "";
-                },
-                valueExpr: 'id',
-                value: appointmentData.ghm_room_id || null
-            }
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            return tooltipHtml;
         }
-    ]);
-}
+    });
+
+    // 🔥 Fungsi untuk repaint Scheduler tanpa reload halaman
+    function repaintScheduler() {
+        $(".scheduler").dxScheduler("instance").repaint();
+    }
+});
