@@ -1,31 +1,66 @@
-function validateBooking() {
-    let guestCount = (form.getEditor("guest")?.option("value") || []).length;
-    let familyCount = (form.getEditor("family")?.option("value") || []).length;
-    let employeeCount = (form.getEditor("employee")?.option("value") || []).length;
-    let totalGuests = guestCount + familyCount + employeeCount;
-    console.log("total guest", totalGuests);
-    let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
-    let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
-    console.log("total Kaps", roomCapacity);        
-    let doneButton = $(".dx-popup-bottom .dx-button.dx-popup-done");
-    if (totalGuests > roomCapacity) {
-        DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
-    }
-}
+onAppointmentFormOpening: function(e) {
+    const form = e.form;
+    const appointmentData = e.appointmentData;
 
-// Tambahkan validasi sebelum form disubmit
-form.option("onValidated", function(e) {
-    let guestCount = (form.getEditor("guest")?.option("value") || []).length;
-    let familyCount = (form.getEditor("family")?.option("value") || []).length;
-    let employeeCount = (form.getEditor("employee")?.option("value") || []).length;
+    function validateBooking() {
+        let guestCount = (form.getEditor("guest")?.option("value") || []).length;
+        let familyCount = (form.getEditor("family")?.option("value") || []).length;
+        let employeeCount = (form.getEditor("employee")?.option("value") || []).length;
+        let totalGuests = guestCount + familyCount + employeeCount;
+        console.log("Total guest:", totalGuests);
+
+        let selectedRoom = form.getEditor("ghm_room_id")?.option("value");
+        let roomCapacity = roomsWithLocations.find(room => room.id === selectedRoom)?.roomAccupancy || 0;
+        console.log("Room capacity:", roomCapacity);
+
+        if (totalGuests > roomCapacity) {
+            DevExpress.ui.notify("Jumlah tamu melebihi kapasitas kamar!", "error", 2000);
+        }
+    }
+
+    // Validasi sebelum form disubmit
+    form.option("onValidated", function(e) {
+        let guestCount = (form.getEditor("guest")?.option("value") || []).length;
+        let familyCount = (form.getEditor("family")?.option("value") || []).length;
+        let employeeCount = (form.getEditor("employee")?.option("value") || []).length;
+        let totalGuests = guestCount + familyCount + employeeCount;
+
+        if (totalGuests < 1) {
+            e.isValid = false; // Mencegah submit
+            DevExpress.ui.notify("Total guests harus lebih dari 0!", "error", 2000);
+        }
+    });
+
+    form.option('items', [
+        // Form items tetap sama
+    ]);
+
+    setTimeout(validateBooking, 100);
+},
+
+// Validasi sebelum event disimpan
+onAppointmentAdding: function(e) {
+    let guestCount = (e.appointmentData.guest || []).length;
+    let familyCount = (e.appointmentData.family || []).length;
+    let employeeCount = (e.appointmentData.employee || []).length;
     let totalGuests = guestCount + familyCount + employeeCount;
 
     if (totalGuests < 1) {
-        e.isValid = false; // Mencegah submit
+        e.cancel = true; // Mencegah submit
         DevExpress.ui.notify("Total guests harus lebih dari 0!", "error", 2000);
     }
-});
+}
 
-form.option('items', [ 
-    // Form items tetap seperti sebelumnya
-]);
+
+
+onAppointmentAdding: function(e) {
+    let guestCount = (e.appointmentData.guest || []).length;
+    let familyCount = (e.appointmentData.family || []).length;
+    let employeeCount = (e.appointmentData.employee || []).length;
+    let totalGuests = guestCount + familyCount + employeeCount;
+
+    if (totalGuests < 1) {
+        e.cancel = true; // Mencegah submit
+        DevExpress.ui.notify("Total guests harus lebih dari 0!", "error", 2000);
+    }
+}
