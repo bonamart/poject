@@ -1,4 +1,44 @@
+var schedulerInstance; // ⬅️ Pastikan deklarasi di luar $(document).ready()
+
+$(document).ready(function () {
+    schedulerInstance = $(".scheduler").dxScheduler({
+        timeZone: 'Asia/Makassar',
+        dataSource: booking,
+        repaintChangesOnly: true,
+        views: ['month'],
+        currentView: 'month',
+        currentDate: new Date(),
+        firstDayOfWeek: 1,
+        startDayHour: 10,
+        endDayHour: 22,
+        colorExpr: "color",
+        showAllDayPanel: false,
+        height: 710,
+        groups: ['ghm_room_id'],
+        resources: [
+            {
+                fieldExpr: 'ghm_room_id',
+                allowMultiple: false,
+                dataSource: dataSource,
+                label: 'Room Name',
+            },
+        ],
+        editing: {
+            refreshMode: 'reshape',
+            mode: 'cell',
+            allowAdding: true,
+            allowUpdating: true,
+            allowDeleting: true,
+        }
+    }).dxScheduler("instance"); // ⬅️ Ambil instance Scheduler dengan benar
+});
+=============================
 function repaintScheduler() {
+    if (!schedulerInstance) {
+        console.warn("⚠️ schedulerInstance belum diinisialisasi. Tunggu sampai Scheduler siap.");
+        return;
+    }
+
     let url = apiurl + "/" + modname;
     console.log("🔄 Fetching new data from:", url);
 
