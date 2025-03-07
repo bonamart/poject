@@ -1,174 +1,24 @@
-$(document).ready(function () {
-    // Inisialisasi scheduler
-    var schedulerInstance = $(".scheduler").dxScheduler({
-        timeZone: 'Asia/Makassar',
-        dataSource: booking,
-        repaintChangesOnly: true,
-        views: ['month'],
-        currentView: 'month',
-        currentDate: new Date(),
-        firstDayOfWeek: 1,
-        startDayHour: 10,
-        endDayHour: 22,
-        colorExpr: "color",
-        showAllDayPanel: false,
-        height: 710,
-        groups: ['ghm_room_id'],
-        resources: [
-            {
-                fieldExpr: 'ghm_room_id',
-                allowMultiple: false,
-                dataSource: dataSource,
-                label: 'Room Name',
-            },
-        ],
-        editing: {
-            refreshMode: 'reshape',
-            mode: 'cell',
-            allowAdding: true,
-            allowUpdating: true,
-            allowDeleting: true,
+function repaintScheduler() {
+    var scheduler = $(".scheduler").dxScheduler("instance");
+
+    // 🔥 Ambil ulang data dari server sebelum repaint
+    $.ajax({
+        url: apiurl + "/" + modname,
+        type: "GET",
+        dataType: "json",
+        success: function (newData) {
+            console.log("Updated Data:", newData); // ✅ Debug: Pastikan data diterima dari API
+
+            if (Array.isArray(newData) && newData.length > 0) {
+                scheduler.option("dataSource", newData); // ✅ Update dataSource
+            } else {
+                console.warn("⚠️ Warning: Data kosong setelah update!");
+            }
+
+            scheduler.repaint(); // 🔄 Repaint agar perubahan langsung terlihat
         },
-        appointmentTooltipTemplate: function (model) {
-            const booking = model.appointmentData;
-            console.log("Booking Data:", booking); // Debugging
-
-            const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-            const roomOccupancy = room?.roomOccupancy || 0;
-
-            // Hitung total orang di booking
-            const guestCount = safeArray(booking.guest).length;
-            const familyCount = safeArray(booking.family).length;
-            const employeeCount = safeArray(booking.employee).length;
-            const totalPeople = guestCount + familyCount + employeeCount;
-
-            // Hitung sisa kapasitas kamar
-            const remainingCapacity = roomOccupancy - totalPeople;
-
-            // Format tanggal dengan aman
-            const formatDate = (date) => {
-                if (!date) return "No Date";
-                const d = new Date(date);
-                return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
-            };
-
-            // ID unik untuk tombol
-            const actionButtonId = `action-btn-${booking.id}`;
-            const isCancelable = Number(booking.requestStatus) === 1 || Number(booking.requestStatus) === 2;
-            console.log("isCancelable:", isCancelable, "requestStatus:", booking.requestStatus); // Debugging
-
-            const buttonLabel = isCancelable ? "Cancel" : "Delete";
-            const buttonClass = isCancelable ? "btn-warning" : "btn-danger";
-
-            const tooltipHtml = `
-                <div>
-                    <b>Purpose (Text): ${booking.text || "No Title"}</b><br>
-                    ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
-                    <b>Occupancy:</b> ${roomOccupancy} Person<br>
-                    <b>Booked:</b> ${totalPeople} Person<br>
-                    <b>Remaining:</b> ${remainingCapacity} Person<br>
-                    <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-                    <button id="${actionButtonId}" class="btn ${buttonClass} btn-sm">${buttonLabel}</button>
-                </div>
-            `;
-
-            // Gunakan MutationObserver untuk memastikan tombol tersedia di DOM
-            const observer = new MutationObserver((mutations) => {
-                const actionButton = document.getElementById(actionButtonId);
-                if (actionButton) {
-                    actionButton.addEventListener("click", function (event) {
-                        event.stopPropagation(); // Mencegah popup scheduler terbuka
-                        event.preventDefault();
-
-                        Swal.fire({
-                            title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
-                            text: isCancelable
-                                ? "Do you really want to cancel this booking?"
-                                : "Do you really want to delete this booking?",
-                            icon: isCancelable ? 'warning' : 'error',
-                            showCancelButton: true,
-                            confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
-                            cancelButtonText: 'No, keep it'
-                        }).then((result) => {
-                            if (!result.isConfirmed) return;
-
-                            if (isCancelable) {
-                                // Kirim request ke API Update
-                                sendRequest(apiurl + "/" + modname + "/" + booking.id, "PATCH", { requestStatus: 0 })
-                                    .then(response => {
-                                        if (response.status === "success") {
-                                            Swal.fire({
-                                                icon: 'success',
-                                                title: 'Booking Canceled!',
-                                                text: 'Booking has been successfully set to Canceled.',
-                                                timer: 2000,
-                                                showConfirmButton: false
-                                            });
-                                            repaintScheduler(); // ✅ Perbarui Scheduler setelah update
-                                        } else {
-                                            Swal.fire({
-                                                icon: 'error',
-                                                title: 'Error',
-                                                text: response.message || "Failed to update booking."
-                                            });
-                                        }
-                                    })
-                                    .catch(error => {
-                                        Swal.fire({
-                                            icon: 'error',
-                                            title: 'Error',
-                                            text: error.responseText || "Unknown error."
-                                        });
-                                    });
-                            } else {
-                                // Kirim request DELETE untuk menghapus booking
-                                sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
-                                    .then(response => {
-                                        if (response.status === "success") {
-                                            Swal.fire({
-                                                icon: 'success',
-                                                title: 'Deleted!',
-                                                text: 'Booking deleted successfully!',
-                                                timer: 2000,
-                                                showConfirmButton: false
-                                            });
-                                            repaintScheduler(); // ✅ Perbarui Scheduler setelah hapus
-                                        } else {
-                                            Swal.fire({
-                                                icon: 'error',
-                                                title: 'Error',
-                                                text: response.message || "Failed to delete booking."
-                                            });
-                                        }
-                                    })
-                                    .catch(error => {
-                                        Swal.fire({
-                                            icon: 'error',
-                                            title: 'Error',
-                                            text: error.responseText || "Unknown error."
-                                        });
-                                    });
-                            }
-                        });
-                    });
-                    observer.disconnect(); // Hentikan observer setelah tombol ditemukan
-                }
-            });
-
-            observer.observe(document.body, { childList: true, subtree: true });
-
-            return tooltipHtml;
+        error: function (xhr, status, error) {
+            console.error("❌ Gagal mengambil data terbaru:", error);
         }
     });
-
-    // Fungsi untuk memperbarui Scheduler tanpa reload halaman
-    function repaintScheduler() {
-        var scheduler = $(".scheduler").dxScheduler("instance");
-
-        // 🔥 Ambil ulang data dari server sebelum repaint
-        $.get(apiurl + "/" + modname, function (data) {
-            scheduler.option("dataSource", data); // ✅ Update dataSource
-            scheduler.repaint(); // 🔄 Repaint agar perubahan langsung terlihat
-        });
-    }
-});
+}
