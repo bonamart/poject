@@ -1,25 +1,62 @@
-// Tambahkan tombol refresh ke dalam form atau di tempat yang sesuai
-$('#booking-form').prepend('<button id="refresh-scheduler" class="dx-button">Refresh Scheduler</button>');
+$(function() {
+    // Fungsi untuk merefresh scheduler
+    function refreshScheduler() {
+        console.log('Refreshing scheduler...');
+        
+        const scheduler = $('#scheduler-container').dxScheduler('instance');
 
-// Event handler untuk tombol refresh scheduler
-$('#refresh-scheduler').on('click', function() {
-    console.log('Refreshing scheduler...');
-    
-    // Ambil instance dari Scheduler
-    const scheduler = $('#scheduler-container').dxScheduler('instance');
+        fetch(apiurl + "/getAppointments")
+            .then(response => response.json())
+            .then(newData => {
+                scheduler.option('dataSource', newData);
+                scheduler.repaint();
+                console.log('Scheduler refreshed successfully!');
+                alert('Scheduler refreshed!');
+            })
+            .catch(error => {
+                console.error('Error refreshing scheduler:', error);
+                alert('Failed to refresh scheduler.');
+            });
+    }
 
-    // Panggil API untuk mengambil data terbaru (jika perlu)
-    fetch(apiurl + "/getAppointments")
-        .then(response => response.json())
-        .then(newData => {
-            // Update dataSource Scheduler dengan data terbaru
-            scheduler.option('dataSource', newData);
-            scheduler.repaint(); // Memastikan tampilan diperbarui
-            console.log('Scheduler refreshed successfully!');
-            alert('Scheduler refreshed!');
-        })
-        .catch(error => {
-            console.error('Error refreshing scheduler:', error);
-            alert('Failed to refresh scheduler.');
+    // Tambahkan tombol refresh di samping location-selector dan room-selector
+    $('#location-selector').after('<button id="refresh-location" class="dx-button">🔄 Refresh</button>');
+    $('#room-selector').after('<button id="refresh-room" class="dx-button">🔄 Refresh</button>');
+
+    // Event handler untuk tombol refresh
+    $('#refresh-location, #refresh-room').on('click', function() {
+        refreshScheduler();
+    });
+
+    $('#location-selector').dxSelectBox({
+        dataSource: uniqueLocations,
+        displayExpr: function(item) {
+            return item || "";
+        },
+        valueExpr: function(item) {
+            return item;
+        },
+        value: uniqueLocations[0],
+        onValueChanged: function(e) {
+            const selectedLocation = e.value;
+            updateRoomSelector(selectedLocation);
+        }
+    });
+
+    function updateRoomSelector(location) {
+        const filteredRooms = roomsWithLocations.filter(emp => emp.location === location);
+        $('#room-selector').dxSelectBox({
+            dataSource: filteredRooms,
+            displayExpr: 'text',
+            valueExpr: 'id',
+            value: null,
+            placeholder: 'Select Room',
+            onValueChanged: function(e) {
+                const selectedRoomId = e.value;
+                updateScheduler(location, selectedRoomId);
+            }
         });
+
+        updateScheduler(location, null);
+    }
 });
