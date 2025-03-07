@@ -1,95 +1,76 @@
 $(function() {
-    let dataSubmitted = false;
+    let uniqueLocations = ["Office 1", "Office 2", "Office 3"];
+    let uniqueRooms = ["Room A", "Room B", "Room C"];
 
-    function submitFormData() {
-        if (dataSubmitted) return; // Prevent duplicate submissions
+    // Buat container box secara dinamis
+    let $container = $("<div>").attr("id", "layout-container").appendTo("body");
 
-        dataSubmitted = true;
-        const formData = $('#booking-form').serializeArray();
-
-        const guestField = formData.find(field => field.name === 'guest');
-        guestField.value = (guestField.value.split(',').map(name => name.trim()));
-
-        const familyField = formData.find(field => field.name === 'family');
-        familyField.value = serializeToJSON(familyField.value.split(',').map(name => name.trim()));
-
-        sendRequest(apiurl + "/" + modname, "POST", formData).then(function(response) {
-            if (response.status === 'success') {
-                alert('Booking created successfully!');
-                location.reload(); // Reload page to reflect new booking
-            } else {
-                alert('Error: ' + response.message);
+    // Inisialisasi dxBox untuk mengatur tata letak sejajar
+    $container.dxBox({
+        direction: "row",
+        align: "center", // Agar elemen sejajar di tengah
+        crossAlign: "center",
+        width: "100%",
+        items: [
+            {
+                ratio: 1,
+                html: '<div id="location-selector"></div>'
+            },
+            {
+                ratio: 1,
+                html: '<div id="room-selector"></div>'
+            },
+            {
+                ratio: 0.5,
+                html: '<div id="help-button"></div>'
+            },
+            {
+                ratio: 0.5,
+                html: '<div id="refresh-button"></div>'
             }
-        }).catch(function(error) {
-            alert('Error: ' + error.responseText);
-        }).finally(function() {
-            dataSubmitted = false; // Reset the flag after submission
-        });
-    }
-
-    $('#booking-form').on('submit', function(event) {
-        event.preventDefault();
-        submitFormData();
+        ]
     });
 
-    // Fungsi untuk merefresh scheduler
-    function refreshScheduler() {
-        console.log('Refreshing scheduler...');
-
-        const scheduler = $('#scheduler-container').dxScheduler('instance');
-
-        fetch(apiurl + "/getAppointments")
-            .then(response => response.json())
-            .then(newData => {
-                scheduler.option('dataSource', newData);
-                scheduler.repaint();
-                console.log('Scheduler refreshed successfully!');
-                alert('Scheduler refreshed!');
-            })
-            .catch(error => {
-                console.error('Error refreshing scheduler:', error);
-                alert('Failed to refresh scheduler.');
-            });
-    }
-
-    // Tambahkan tombol refresh di samping location-selector dan room-selector
-    $('#location-selector').after('<button id="refresh-location" class="dx-button">🔄 Refresh</button>');
-    $('#room-selector').after('<button id="refresh-room" class="dx-button">🔄 Refresh</button>');
-
-    // Event handler untuk tombol refresh
-    $('#refresh-location, #refresh-room').on('click', function() {
-        refreshScheduler();
-    });
-
-    $('#location-selector').dxSelectBox({
+    // Inisialisasi Location Selector
+    $("#location-selector").dxSelectBox({
         dataSource: uniqueLocations,
-        displayExpr: function(item) {
-            return item || "";
-        },
-        valueExpr: function(item) {
-            return item;
-        },
+        displayExpr: item => item || "",
+        valueExpr: item => item,
         value: uniqueLocations[0],
         onValueChanged: function(e) {
-            const selectedLocation = e.value;
-            updateRoomSelector(selectedLocation);
+            updateRoomSelector(e.value);
         }
     });
 
-    function updateRoomSelector(location) {
-        const filteredRooms = roomsWithLocations.filter(emp => emp.location === location);
-        $('#room-selector').dxSelectBox({
-            dataSource: filteredRooms,
-            displayExpr: 'text',
-            valueExpr: 'id',
-            value: null,
-            placeholder: 'Select Room',
-            onValueChanged: function(e) {
-                const selectedRoomId = e.value;
-                updateScheduler(location, selectedRoomId);
-            }
-        });
+    // Inisialisasi Room Selector
+    $("#room-selector").dxSelectBox({
+        dataSource: uniqueRooms,
+        displayExpr: item => item || "",
+        valueExpr: item => item,
+        value: uniqueRooms[0]
+    });
 
-        updateScheduler(location, null);
+    // Inisialisasi Help Button
+    $("#help-button").dxButton({
+        text: "Help",
+        icon: "help",
+        onClick() {
+            DevExpress.ui.notify("Help button clicked");
+        }
+    });
+
+    // Inisialisasi Refresh Button
+    $("#refresh-button").dxButton({
+        text: "Refresh",
+        icon: "refresh",
+        onClick() {
+            DevExpress.ui.notify("Refresh button clicked");
+        }
+    });
+
+    // Fungsi untuk update Room Selector
+    function updateRoomSelector(location) {
+        console.log("Selected Location:", location);
+        DevExpress.ui.notify(`Location changed to ${location}`);
     }
 });
