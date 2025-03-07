@@ -1,13 +1,57 @@
-function refreshScheduler() {
-    let scheduler = $("#scheduler").dxScheduler("instance");
+appointmentTooltipTemplate: function(model) {
+    const booking = model.appointmentData;
+    console.log("Booking Data:", booking); // Debugging
 
-    if (scheduler) {
-        scheduler.getDataSource().reload().done(() => {
-            DevExpress.ui.notify("Scheduler updated!", "success", 1500);
-        }).fail(() => {
-            DevExpress.ui.notify("Failed to reload scheduler", "error", 1500);
-        });
-    } else {
-        console.error("Scheduler instance not found!");
-    }
+    const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
+    const roomOccupancy = room?.roomOccupancy || 0;
+
+    // Hitung total orang di booking
+    const guestCount = safeArray(booking.guest).length;
+    const familyCount = safeArray(booking.family).length;
+    const employeeCount = safeArray(booking.employee).length;
+    const totalPeople = guestCount + familyCount + employeeCount;
+
+    // Hitung sisa kapasitas kamar
+    const remainingCapacity = roomOccupancy - totalPeople;
+
+    // Simpan data ini ke dalam `appointmentData`
+    booking.roomOccupancy = roomOccupancy;
+    booking.totalPeople = totalPeople;
+    booking.remainingCapacity = remainingCapacity;
+
+    return `
+        <div>
+            <b>Purpose:</b> ${booking.text || "No Title"}<br>
+            <b>Occupancy:</b> ${roomOccupancy} Person<br>
+            <b>Booked:</b> ${totalPeople} Person<br>
+            <b>Remaining:</b> ${remainingCapacity} Person<br>
+            <b>Created By:</b> ${booking.creator || "No Name"}<br>
+        </div>
+    `;
+}
+
+
+
+formOpening: function(e) {
+    const appointmentData = e.appointmentData || {};
+
+    e.form.option("items", [
+        {
+            label: { text: 'Room' },
+            editorType: 'dxSelectBox',
+            dataField: 'ghm_room_id',
+            helpText: `Occupancy: ${appointmentData.roomOccupancy || 0} | 
+                       Booked: ${appointmentData.totalPeople || 0} | 
+                       Remaining: ${appointmentData.remainingCapacity || 0}`,
+            editorOptions: {
+                readOnly: false,
+                dataSource: roomsWithLocations,
+                displayExpr: function(item) {
+                    return item ? `${item.location} | ${item.text}` : "";
+                },
+                valueExpr: 'id',
+                value: appointmentData.ghm_room_id || null
+            }
+        }
+    ]);
 }
