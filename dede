@@ -1,143 +1,21 @@
-$(document).ready(function () {
-    var schedulerInstance = $(".scheduler").dxScheduler({
-        timeZone: 'Asia/Makassar',
-        dataSource: booking, // Data awal
-        repaintChangesOnly: true,
-        views: ['month'],
-        currentView: 'month',
-        currentDate: new Date(),
-        firstDayOfWeek: 1,
-        startDayHour: 10,
-        endDayHour: 22,
-        colorExpr: "color",
-        showAllDayPanel: false,
-        height: 710,
-        groups: ['ghm_room_id'],
-        resources: [
-            {
-                fieldExpr: 'ghm_room_id',
-                allowMultiple: false,
-                dataSource: dataSource,
-                label: 'Room Name',
-            },
-        ],
-        editing: {
-            refreshMode: 'reshape',
-            mode: 'cell',
-            allowAdding: true,
-            allowUpdating: true,
-            allowDeleting: true,
-        },
-        appointmentTooltipTemplate: function (model) {
-            const booking = model.appointmentData;
-            const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
-            const roomOccupancy = room?.roomOccupancy || 0;
-            
-            const guestCount = safeArray(booking.guest).length;
-            const familyCount = safeArray(booking.family).length;
-            const employeeCount = safeArray(booking.employee).length;
-            const totalPeople = guestCount + familyCount + employeeCount;
-            const remainingCapacity = roomOccupancy - totalPeople;
+function repaintScheduler() {
+    let url = apiurl + "/" + modname;
+    console.log("🔄 Fetching new data from:", url);
 
-            const formatDate = (date) => {
-                if (!date) return "No Date";
-                const d = new Date(date);
-                return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
-            };
+    sendRequest(url, "GET")
+        .then(newData => {
+            console.log("✅ Data Fetched:", newData);
 
-            const actionButtonId = `action-btn-${booking.id}`;
-            const isCancelable = Number(booking.requestStatus) === 1 || Number(booking.requestStatus) === 2;
-            const buttonLabel = isCancelable ? "Cancel" : "Delete";
-            const buttonClass = isCancelable ? "btn-warning" : "btn-danger";
+            if (!Array.isArray(newData) || newData.length === 0) {
+                console.warn("⚠️ Warning: Data kosong setelah update!");
+                return;
+            }
 
-            const tooltipHtml = `
-                <div>
-                    <b>Purpose (Text): ${booking.text || "No Title"}</b><br>
-                    ${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}<br>
-                    <b>Occupancy:</b> ${roomOccupancy} Person<br>
-                    <b>Booked:</b> ${totalPeople} Person<br>
-                    <b>Remaining:</b> ${remainingCapacity} Person<br>
-                    <b>Created By:</b> ${booking.creator || "No Name"}<br><br>
-                    <button id="${actionButtonId}" class="btn ${buttonClass} btn-sm">${buttonLabel}</button>
-                </div>
-            `;
-
-            setTimeout(() => {
-                const actionButton = document.getElementById(actionButtonId);
-                if (actionButton) {
-                    actionButton.addEventListener("click", function (event) {
-                        event.stopPropagation();
-                        event.preventDefault();
-
-                        Swal.fire({
-                            title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
-                            text: isCancelable
-                                ? "Do you really want to cancel this booking?"
-                                : "Do you really want to delete this booking?",
-                            icon: isCancelable ? 'warning' : 'error',
-                            showCancelButton: true,
-                            confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
-                            cancelButtonText: 'No, keep it'
-                        }).then((result) => {
-                            if (!result.isConfirmed) return;
-
-                            let requestType = isCancelable ? "PATCH" : "DELETE";
-                            let requestData = isCancelable ? { requestStatus: 0 } : {};
-
-                            sendRequest(apiurl + "/" + modname + "/" + booking.id, requestType, requestData)
-                                .then(response => {
-                                    if (response.status === "success") {
-                                        Swal.fire({
-                                            icon: 'success',
-                                            title: isCancelable ? 'Booking Canceled!' : 'Deleted!',
-                                            text: isCancelable ? 
-                                                'Booking has been successfully set to Canceled.' : 
-                                                'Booking deleted successfully!',
-                                            timer: 2000,
-                                            showConfirmButton: false
-                                        });
-
-                                        repaintScheduler(); // 🔥 Update data scheduler
-                                    } else {
-                                        Swal.fire({
-                                            icon: 'error',
-                                            title: 'Error',
-                                            text: response.message || "Failed to update booking."
-                                        });
-                                    }
-                                })
-                                .catch(error => {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error',
-                                        text: error.responseText || "Unknown error."
-                                    });
-                                });
-                        });
-                    });
-                }
-            }, 200);
-
-            return tooltipHtml;
-        }
-    }).dxScheduler("instance");
-
-    function repaintScheduler() {
-        sendRequest(apiurl + "/" + modname, "GET") // 🔥 Ambil ulang data dari API
-            .then(newData => {
-                console.log("Updated Data After API Fetch:", newData); // ✅ Debugging
-
-                if (Array.isArray(newData) && newData.length > 0) {
-                    let newDataCopy = JSON.parse(JSON.stringify(newData)); // 🔥 Buat salinan data baru
-                    schedulerInstance.option("dataSource", newDataCopy); // ✅ Perbarui scheduler dengan data baru
-                } else {
-                    console.warn("⚠️ Warning: Data kosong setelah update!");
-                }
-
-                schedulerInstance.repaint(); // 🔄 Repaint agar perubahan langsung terlihat
-            })
-            .catch(error => {
-                console.error("❌ Gagal mengambil data terbaru:", error);
-            });
-    }
-});
+            let newDataCopy = JSON.parse(JSON.stringify(newData));
+            schedulerInstance.option("dataSource", newDataCopy);
+            schedulerInstance.repaint();
+        })
+        .catch(error => {
+            console.error("❌ Gagal mengambil data terbaru:", error);
+        });
+}
