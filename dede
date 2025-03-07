@@ -1,76 +1,37 @@
-$(function() {
-    let uniqueLocations = ["Office 1", "Office 2", "Office 3"];
-    let uniqueRooms = ["Room A", "Room B", "Room C"];
+function refreshScheduler() {
+    let scheduler = $("#scheduler").dxScheduler("instance");
 
-    // Buat container box secara dinamis
-    let $container = $("<div>").attr("id", "layout-container").appendTo("body");
-
-    // Inisialisasi dxBox untuk mengatur tata letak sejajar
-    $container.dxBox({
-        direction: "row",
-        align: "center", // Agar elemen sejajar di tengah
-        crossAlign: "center",
-        width: "100%",
-        items: [
-            {
-                ratio: 1,
-                html: '<div id="location-selector"></div>'
-            },
-            {
-                ratio: 1,
-                html: '<div id="room-selector"></div>'
-            },
-            {
-                ratio: 0.5,
-                html: '<div id="help-button"></div>'
-            },
-            {
-                ratio: 0.5,
-                html: '<div id="refresh-button"></div>'
-            }
-        ]
+    scheduler.getDataSource().reload().done(() => {
+        DevExpress.ui.notify("Scheduler updated!", "success", 1500);
+    }).fail(() => {
+        DevExpress.ui.notify("Failed to reload scheduler", "error", 1500);
     });
-
-    // Inisialisasi Location Selector
-    $("#location-selector").dxSelectBox({
-        dataSource: uniqueLocations,
-        displayExpr: item => item || "",
-        valueExpr: item => item,
-        value: uniqueLocations[0],
-        onValueChanged: function(e) {
-            updateRoomSelector(e.value);
-        }
-    });
-
-    // Inisialisasi Room Selector
-    $("#room-selector").dxSelectBox({
-        dataSource: uniqueRooms,
-        displayExpr: item => item || "",
-        valueExpr: item => item,
-        value: uniqueRooms[0]
-    });
-
-    // Inisialisasi Help Button
-    $("#help-button").dxButton({
-        text: "Help",
-        icon: "help",
-        onClick() {
-            DevExpress.ui.notify("Help button clicked");
-        }
-    });
-
-    // Inisialisasi Refresh Button
-    $("#refresh-button").dxButton({
-        text: "Refresh",
-        icon: "refresh",
-        onClick() {
-            DevExpress.ui.notify("Refresh button clicked");
-        }
-    });
-
-    // Fungsi untuk update Room Selector
-    function updateRoomSelector(location) {
-        console.log("Selected Location:", location);
-        DevExpress.ui.notify(`Location changed to ${location}`);
+}
+=======================
+$("#refresh-button").dxButton({
+    text: "Refresh",
+    icon: "refresh",
+    onClick() {
+        refreshScheduler();
+    }
+});
+====================
+$("#scheduler").dxScheduler({
+    dataSource: new DevExpress.data.DataSource({
+        store: new DevExpress.data.CustomStore({
+            load: () => fetch("/api/scheduler-data").then(response => response.json()),
+            insert: (values) => fetch("/api/scheduler-add", { method: "POST", body: JSON.stringify(values) }),
+            update: (key, values) => fetch(`/api/scheduler-update/${key}`, { method: "PUT", body: JSON.stringify(values) }),
+            remove: (key) => fetch(`/api/scheduler-delete/${key}`, { method: "DELETE" })
+        })
+    }),
+    onAppointmentAdded: function() {
+        refreshScheduler(); // Refresh setelah menambah data
+    },
+    onAppointmentUpdated: function() {
+        refreshScheduler(); // Refresh setelah mengedit data
+    },
+    onAppointmentDeleted: function() {
+        refreshScheduler(); // Refresh setelah menghapus data
     }
 });
