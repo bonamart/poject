@@ -31,25 +31,31 @@ $(document).ready(function () {
         },
         appointmentTooltipTemplate: function (model) {
             const booking = model.appointmentData;
-            console.log("Booking Data:", booking);
+            console.log("Booking Data:", booking); // Debugging
 
             const room = roomsWithLocations.find(room => room.id === booking.ghm_room_id);
             const roomOccupancy = room?.roomOccupancy || 0;
+
+            // Hitung total orang di booking
             const guestCount = safeArray(booking.guest).length;
             const familyCount = safeArray(booking.family).length;
             const employeeCount = safeArray(booking.employee).length;
             const totalPeople = guestCount + familyCount + employeeCount;
+
+            // Hitung sisa kapasitas kamar
             const remainingCapacity = roomOccupancy - totalPeople;
 
+            // Format tanggal dengan aman
             const formatDate = (date) => {
                 if (!date) return "No Date";
                 const d = new Date(date);
                 return isNaN(d.getTime()) ? "No Date" : d.toISOString().split("T")[0];
             };
 
+            // ID unik untuk tombol
             const actionButtonId = `action-btn-${booking.id}`;
             const isCancelable = Number(booking.requestStatus) === 1 || Number(booking.requestStatus) === 2;
-            console.log("isCancelable:", isCancelable, "requestStatus:", booking.requestStatus);
+            console.log("isCancelable:", isCancelable, "requestStatus:", booking.requestStatus); // Debugging
 
             const buttonLabel = isCancelable ? "Cancel" : "Delete";
             const buttonClass = isCancelable ? "btn-warning" : "btn-danger";
@@ -71,7 +77,7 @@ $(document).ready(function () {
                 const actionButton = document.getElementById(actionButtonId);
                 if (actionButton) {
                     actionButton.addEventListener("click", function (event) {
-                        event.stopPropagation();
+                        event.stopPropagation(); // Mencegah popup scheduler terbuka
                         event.preventDefault();
 
                         Swal.fire({
@@ -87,6 +93,7 @@ $(document).ready(function () {
                             if (!result.isConfirmed) return;
 
                             if (isCancelable) {
+                                // Kirim request ke API Update
                                 sendRequest(apiurl + "/" + modname + "/" + booking.id, "PATCH", { requestStatus: 0 })
                                     .then(response => {
                                         if (response.status === "success") {
@@ -97,7 +104,7 @@ $(document).ready(function () {
                                                 timer: 2000,
                                                 showConfirmButton: false
                                             });
-                                            repaintScheduler(); // 🔄 Repaint Scheduler setelah update
+                                            repaintScheduler(); // ✅ Perbarui Scheduler setelah update
                                         } else {
                                             Swal.fire({
                                                 icon: 'error',
@@ -114,6 +121,7 @@ $(document).ready(function () {
                                         });
                                     });
                             } else {
+                                // Kirim request DELETE untuk menghapus booking
                                 sendRequest(apiurl + "/" + modname + "/" + booking.id, "DELETE")
                                     .then(response => {
                                         if (response.status === "success") {
@@ -124,7 +132,7 @@ $(document).ready(function () {
                                                 timer: 2000,
                                                 showConfirmButton: false
                                             });
-                                            repaintScheduler(); // 🔄 Repaint Scheduler setelah hapus event
+                                            repaintScheduler(); // ✅ Perbarui Scheduler setelah hapus
                                         } else {
                                             Swal.fire({
                                                 icon: 'error',
@@ -153,8 +161,14 @@ $(document).ready(function () {
         }
     });
 
-    // 🔥 Fungsi untuk repaint Scheduler tanpa reload halaman
+    // Fungsi untuk memperbarui Scheduler tanpa reload halaman
     function repaintScheduler() {
-        $(".scheduler").dxScheduler("instance").repaint();
+        var scheduler = $(".scheduler").dxScheduler("instance");
+
+        // 🔥 Ambil ulang data dari server sebelum repaint
+        $.get(apiurl + "/" + modname, function (data) {
+            scheduler.option("dataSource", data); // ✅ Update dataSource
+            scheduler.repaint(); // 🔄 Repaint agar perubahan langsung terlihat
+        });
     }
 });
