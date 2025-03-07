@@ -1,0 +1,28 @@
+$booking = $requests->filter(function ($request) use ($totalPeopleArray) {
+    return ($totalPeopleArray[$request->id] ?? 0) > 0; // Hanya menyertakan data dengan totalPeople > 0
+})->map(function ($request) use ($rooms, $locations, $totalPeopleArray, $statusColors) {
+    $room = $rooms->firstWhere('id', $request->ghm_room_id);
+    $location = $room ? $locations->firstWhere('id', $room->location_id) : null;
+    $totalPeople = $totalPeopleArray[$request->id] ?? 0;
+
+    return [
+        'id' => $request->id,
+        'bu' => $request->bu,
+        'sector' => $request->sector,
+        'text' => $request->text ?? '',
+        'guest' => $request->guest ?? 0,
+        'family' => $request->family ?? 0,
+        'employee' => $request->employee ?? null,
+        'description' => $request->description ?? '',
+        'requestStatus' => $request->requestStatus ?? 0,
+        'startDate' => optional($request->startDate)->toIso8601String(),
+        'endDate' => optional($request->endDate)->toIso8601String(),
+        'code' => optional($request->code)->code ?? null,
+        'creator' => optional($request->User)->fullname ?? null,
+        'ghm_room_id' => $request->ghm_room_id,
+        'roomName' => optional($room)->roomName ?? null,
+        'location' => optional($location)->Location ?? null,
+        'totalPeople' => $totalPeople,
+        'requestColor' => isset($statusColors[$request->requestStatus]) ? $statusColors[$request->requestStatus] : '#6C757D', // Default warna abu-abu
+    ];
+});
