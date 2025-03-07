@@ -1,12 +1,9 @@
 function repaintScheduler() {
     var scheduler = $(".scheduler").dxScheduler("instance");
 
-    // 🔥 Ambil ulang data dari server sebelum repaint
-    $.ajax({
-        url: apiurl + "/" + modname,
-        type: "GET",
-        dataType: "json",
-        success: function (newData) {
+    // 🔥 Ambil ulang data menggunakan sendRequest
+    sendRequest(apiurl + "/" + modname, "GET")
+        .then(newData => {
             console.log("Updated Data:", newData); // ✅ Debug: Pastikan data diterima dari API
 
             if (Array.isArray(newData) && newData.length > 0) {
@@ -16,9 +13,8 @@ function repaintScheduler() {
             }
 
             scheduler.repaint(); // 🔄 Repaint agar perubahan langsung terlihat
-        },
-        error: function (xhr, status, error) {
+        })
+        .catch(error => {
             console.error("❌ Gagal mengambil data terbaru:", error);
-        }
-    });
+        });
 }
