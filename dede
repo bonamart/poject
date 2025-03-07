@@ -1,37 +1,13 @@
 function refreshScheduler() {
     let scheduler = $("#scheduler").dxScheduler("instance");
 
-    scheduler.getDataSource().reload().done(() => {
-        DevExpress.ui.notify("Scheduler updated!", "success", 1500);
-    }).fail(() => {
-        DevExpress.ui.notify("Failed to reload scheduler", "error", 1500);
-    });
+    if (scheduler) {
+        scheduler.getDataSource().reload().done(() => {
+            DevExpress.ui.notify("Scheduler updated!", "success", 1500);
+        }).fail(() => {
+            DevExpress.ui.notify("Failed to reload scheduler", "error", 1500);
+        });
+    } else {
+        console.error("Scheduler instance not found!");
+    }
 }
-=======================
-$("#refresh-button").dxButton({
-    text: "Refresh",
-    icon: "refresh",
-    onClick() {
-        refreshScheduler();
-    }
-});
-====================
-$("#scheduler").dxScheduler({
-    dataSource: new DevExpress.data.DataSource({
-        store: new DevExpress.data.CustomStore({
-            load: () => fetch("/api/scheduler-data").then(response => response.json()),
-            insert: (values) => fetch("/api/scheduler-add", { method: "POST", body: JSON.stringify(values) }),
-            update: (key, values) => fetch(`/api/scheduler-update/${key}`, { method: "PUT", body: JSON.stringify(values) }),
-            remove: (key) => fetch(`/api/scheduler-delete/${key}`, { method: "DELETE" })
-        })
-    }),
-    onAppointmentAdded: function() {
-        refreshScheduler(); // Refresh setelah menambah data
-    },
-    onAppointmentUpdated: function() {
-        refreshScheduler(); // Refresh setelah mengedit data
-    },
-    onAppointmentDeleted: function() {
-        refreshScheduler(); // Refresh setelah menghapus data
-    }
-});
