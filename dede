@@ -1,8 +1,41 @@
 $(function() {
+    let dataSubmitted = false;
+
+    function submitFormData() {
+        if (dataSubmitted) return; // Prevent duplicate submissions
+
+        dataSubmitted = true;
+        const formData = $('#booking-form').serializeArray();
+
+        const guestField = formData.find(field => field.name === 'guest');
+        guestField.value = (guestField.value.split(',').map(name => name.trim()));
+
+        const familyField = formData.find(field => field.name === 'family');
+        familyField.value = serializeToJSON(familyField.value.split(',').map(name => name.trim()));
+
+        sendRequest(apiurl + "/" + modname, "POST", formData).then(function(response) {
+            if (response.status === 'success') {
+                alert('Booking created successfully!');
+                location.reload(); // Reload page to reflect new booking
+            } else {
+                alert('Error: ' + response.message);
+            }
+        }).catch(function(error) {
+            alert('Error: ' + error.responseText);
+        }).finally(function() {
+            dataSubmitted = false; // Reset the flag after submission
+        });
+    }
+
+    $('#booking-form').on('submit', function(event) {
+        event.preventDefault();
+        submitFormData();
+    });
+
     // Fungsi untuk merefresh scheduler
     function refreshScheduler() {
         console.log('Refreshing scheduler...');
-        
+
         const scheduler = $('#scheduler-container').dxScheduler('instance');
 
         fetch(apiurl + "/getAppointments")
