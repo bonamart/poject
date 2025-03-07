@@ -1,18 +1,32 @@
-{
-    label: { text: 'End Date' },
-    dataField: 'requestStatus',
-    encodeHtml: false,
-    allowFiltering: false,
-    allowHeaderFiltering: true,
-    customizeText: function (e) {
-        var statusMapping = {
-            "0": "Draft",
-            "1": "Waiting Approval",
-            "2": "Rework",
-            "3": "Approved",
-            "4": "Rejected"
-        };
+customizeText: function (e) {
+    console.log("Nilai yang diterima:", e.value); 
+    let value = String(e.value); // Pastikan nilai dikonversi ke string
+    var statusMapping = {
+        "0": "Draft",
+        "1": "Waiting Approval",
+        "2": "Rework",
+        "3": "Approved",
+        "4": "Rejected"
+    };
 
-        return statusMapping[String(e.value)] || "Unknown";
+    return statusMapping[value] || "Unknown";
+}
+
+{
+    label: { text: 'Status' },
+    editorType: 'dxSelectBox', 
+    dataField: 'requestStatus',
+    editorOptions: {
+        readOnly: true,
+        dataSource: [
+            { id: "0", text: "Draft" },
+            { id: "1", text: "Waiting Approval" },
+            { id: "2", text: "Rework" },
+            { id: "3", text: "Approved" },
+            { id: "4", text: "Rejected" }
+        ],
+        displayExpr: "text",
+        valueExpr: "id",
+        value: String(appointmentData.requestStatus || "0") // Pastikan selalu dalam string
     }
 }
