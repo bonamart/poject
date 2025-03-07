@@ -1,95 +1,18 @@
-onAppointmentUpdating: function(e) {
-    const appointmentData = e.newData;
-    const currentStatus = e.oldData.requestStatus; // Ambil requestStatus lama
+{
+    label: { text: 'End Date' },
+    dataField: 'requestStatus',
+    encodeHtml: false,
+    allowFiltering: false,
+    allowHeaderFiltering: true,
+    customizeText: function (e) {
+        var statusMapping = {
+            "0": "Draft",
+            "1": "Waiting Approval",
+            "2": "Rework",
+            "3": "Approved",
+            "4": "Rejected"
+        };
 
-    // Batalkan update jika requestStatus bukan 0 atau 2
-    if (![0, 2].includes(currentStatus)) {
-        DevExpress.ui.notify("Booking dengan status ini tidak dapat diperbarui!", "error", 3000);
-        e.cancel = true;
-        return;
+        return statusMapping[String(e.value)] || "Unknown";
     }
-
-    const formatDateForDB = (date) => {
-        const d = new Date(date);
-        return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
-    };
-
-    appointmentData.startDate = formatDateForDB(appointmentData.startDate);
-    appointmentData.endDate = formatDateForDB(appointmentData.endDate);
-    appointmentData.id = e.oldData.id; // Pastikan id disertakan
-
-    console.log('Data update yang akan dikirim:', appointmentData);
-
-    console.log('Start Update Submit');
-    let requestStatus = 0;
-
-    Swal.fire({
-        title: 'What do you want to do?',
-        text: 'Choose an option for this booking',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Submit Now',
-        cancelButtonText: 'Save as Draft',
-        reverseButtons: true
-    }).then((result) => {
-        console.log("Swal result:", result);
-
-        if (!result.isConfirmed) {
-            console.log('Draft');
-            sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
-                requestStatus: requestStatus,
-                text: appointmentData.text,
-                description: appointmentData.description,
-                startDate: appointmentData.startDate,
-                endDate: appointmentData.endDate,
-                ghm_room_id: appointmentData.ghm_room_id,
-                employee: appointmentData.employee,
-                guest: appointmentData.guest,
-                family: appointmentData.family,
-            });
-        } else {
-            sendRequest(apiurl + "/" + modname + "/" + appointmentData.id, "PUT", {
-                requestStatus: requestStatus,
-                text: appointmentData.text,
-                description: appointmentData.description,
-                startDate: appointmentData.startDate,
-                endDate: appointmentData.endDate,
-                ghm_room_id: appointmentData.ghm_room_id,
-                employee: appointmentData.employee,
-                guest: appointmentData.guest,
-                family: appointmentData.family,
-            }).then(function(response) {
-                let valapprovalAction = null;
-                let actionForm = 'submission';
-                let valApprovalType = '';
-                let valremarks = '';
-
-                if (response.status == 'success') {
-                    const reqid = appointmentData.id;
-                    sendRequest(apiurl + "/submissionrequest/" + reqid + "/" + modelclass, "POST", {
-                        requestStatus: 1,
-                        action: actionForm,
-                        approvalAction: (valapprovalAction == null) ? 1 : parseInt(valapprovalAction),
-                        approvalType: valApprovalType,
-                        remarks: valremarks
-                    }).then(function(response) {
-                        if (response.status == 'success') {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Saved',
-                                text: 'The submission has been submitted.',
-                            });
-                        }
-                    });
-                }
-            });
-        }
-    });
-}
-
-const currentStatus = e.oldData.requestStatus; // Ambil status lama
-if (![0, 2].includes(currentStatus)) {
-    DevExpress.ui.notify("Booking dengan status ini tidak dapat diperbarui!", "error", 3000);
-    e.cancel = true; // Batalkan update
-    return;
 }
