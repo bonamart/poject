@@ -1,38 +1,72 @@
-var schedulerInstance; // ⬅️ Pastikan deklarasi di luar $(document).ready()
+setTimeout(() => {
+    const actionButton = document.getElementById(actionButtonId);
+    if (actionButton) {
+        actionButton.addEventListener("click", function (event) {
+            event.stopPropagation();
+            event.preventDefault();
 
-$(document).ready(function () {
-    schedulerInstance = $(".scheduler").dxScheduler({
-        timeZone: 'Asia/Makassar',
-        dataSource: booking,
-        repaintChangesOnly: true,
-        views: ['month'],
-        currentView: 'month',
-        currentDate: new Date(),
-        firstDayOfWeek: 1,
-        startDayHour: 10,
-        endDayHour: 22,
-        colorExpr: "color",
-        showAllDayPanel: false,
-        height: 710,
-        groups: ['ghm_room_id'],
-        resources: [
-            {
-                fieldExpr: 'ghm_room_id',
-                allowMultiple: false,
-                dataSource: dataSource,
-                label: 'Room Name',
-            },
-        ],
-        editing: {
-            refreshMode: 'reshape',
-            mode: 'cell',
-            allowAdding: true,
-            allowUpdating: true,
-            allowDeleting: true,
-        }
-    }).dxScheduler("instance"); // ⬅️ Ambil instance Scheduler dengan benar
-});
-=============================
+            Swal.fire({
+                title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
+                text: isCancelable
+                    ? "Do you really want to cancel this booking?"
+                    : "Do you really want to delete this booking?",
+                icon: isCancelable ? 'warning' : 'error',
+                showCancelButton: true,
+                confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
+                cancelButtonText: 'No, keep it'
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+
+                let requestType = isCancelable ? "PATCH" : "DELETE";
+                let requestData = isCancelable ? { requestStatus: 0 } : {};
+
+                sendRequest(apiurl + "/" + modname + "/" + booking.id, requestType, requestData)
+                    .then(response => {
+                        if (response.status === "success") {
+                            Swal.fire({
+                                icon: 'success',
+                                title: isCancelable ? 'Booking Canceled!' : 'Deleted!',
+                                text: isCancelable ? 
+                                    'Booking has been successfully set to Canceled.' : 
+                                    'Booking deleted successfully!',
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+
+                            // Hanya update booking yang diubah
+                            let updatedData = schedulerInstance.option("dataSource").map(item => {
+                                if (item.id === booking.id) {
+                                    return { ...item, requestStatus: 0 }; // Update status
+                                }
+                                return item;
+                            });
+
+                            // Gunakan salinan baru agar tidak mempengaruhi data lain
+                            schedulerInstance.option("dataSource", JSON.parse(JSON.stringify(updatedData)));
+                            schedulerInstance.repaint();
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: response.message || "Failed to update booking."
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: error.responseText || "Unknown error."
+                        });
+                    });
+            });
+        });
+    }
+}, 200);
+
+
+
+
 function repaintScheduler() {
     if (!schedulerInstance) {
         console.warn("⚠️ schedulerInstance belum diinisialisasi. Tunggu sampai Scheduler siap.");
@@ -51,8 +85,10 @@ function repaintScheduler() {
                 return;
             }
 
-            let newDataCopy = JSON.parse(JSON.stringify(newData));
-            schedulerInstance.option("dataSource", newDataCopy);
+            // Buat salinan baru dari data agar perubahan tidak mempengaruhi referensi lama
+            let freshData = JSON.parse(JSON.stringify(newData));
+
+            schedulerInstance.option("dataSource", freshData);
             schedulerInstance.repaint();
         })
         .catch(error => {
