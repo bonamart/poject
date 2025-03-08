@@ -18,25 +18,41 @@ function deserializeFromJSON(jsonString) {
 }
 
 // Fungsi untuk mengirim permintaan ke API
-function sendRequest(url, method, data) {
-    return $.ajax({
-        url: url,
-        method: method,
-        data: JSON.stringify(data),
-        contentType: 'application/json',
-        dataType: 'json'
+function sendRequest(url, method = 'GET', data) {
+    const d = $.Deferred();
+
+    logRequest(method, url, data);
+
+    $.ajax(url, {
+        method,
+        data,
+        cache: false,
+        xhrFields: { withCredentials: true },
+    }).done((result) => {
+        d.resolve(method === 'GET' ? result.data : result);
+        // Memuat ulang scheduler setelah operasi berhasil
+        if (method !== 'GET') {
+            reloadScheduler();
+        }
+    }).fail((xhr) => {
+        d.reject(xhr.responseJSON ? xhr.responseJSON.Message : xhr.statusText);
     });
+
+    return d.promise();
 }
 
 // Fungsi untuk memuat ulang scheduler
 function reloadScheduler() {
     if (schedulerInstance) {
         schedulerInstance.getDataSource().reload().done(() => {
+            console.log("Data scheduler dimuat ulang dari server.");
             schedulerInstance.repaint();
-            console.log("Scheduler reloaded and repainted.");
+            console.log("Tampilan scheduler diperbarui.");
+        }).fail((error) => {
+            console.error("Gagal memuat ulang data scheduler:", error);
         });
     } else {
-        console.error("Scheduler instance is not initialized.");
+        console.error("Scheduler instance belum diinisialisasi.");
     }
 }
 
@@ -44,9 +60,9 @@ function reloadScheduler() {
 function repaintScheduler() {
     if (schedulerInstance) {
         schedulerInstance.repaint();
-        console.log("Scheduler repainted.");
+        console.log("Tampilan scheduler diperbarui.");
     } else {
-        console.error("Scheduler instance is not initialized.");
+        console.error("Scheduler instance belum diinisialisasi.");
     }
 }
 
@@ -108,72 +124,43 @@ function initializeScheduler(dataSource) {
             allowUpdating: true,
             allowDeleting: true
         },
-        onAppointmentFormOpening: function (e) {
-            const form = e.form;
-            const appointmentData = e.appointmentData;
-            form.option('items', [
-                {
-                    itemType: 'group',
-                    colCount: 2,
-                    items: [
-                        {
-                            label: { text: 'Purpose' },
-                            dataField: 'text',
-                            editorType: 'dxTextBox',
-                            validationRules: [{ type: "required", message: 'Purpose is required' }]
-                        },
-                        {
-                            label: { text: 'Room' },
-                            dataField: 'ghm_room_id',
-                            editorType: 'dxSelectBox',
-                            editorOptions: {
-                                dataSource: dataSource,
-                                displayExpr: 'text',
-                                valueExpr: 'id'
-                            }
-                        },
-                        {
-                            label: { text: 'Start Date' },
-                            dataField: 'startDate',
-                            editorType: 'dxDateBox',
-                            editorOptions: {
-                                type: 'datetime'
-                            }
-                        },
-                        {
-                            label: { text: 'End Date' },
-                            dataField: 'endDate',
-                            editorType: 'dxDateBox',
-                            editorOptions: {
-                                type: 'datetime'
-                            }
-                        }
-                    ]
-                }
-            ]);
-        },
         onAppointmentAdding: function (e) {
             const appointmentData = e.appointmentData;
-            sendRequest(apiurl + "/" + modname, "POST", appointmentData).then(function (response) {
-                if (response.status === 'success') {
-                    reloadScheduler();
-                }
-            });
+            sendRequest(apiurl + "/" + modname, "POST", appointmentData)
+                .then(function (response) {
+                    if (response.status === 'success') {
+                        console.log("Appointment berhasil ditambahkan.");
+                        reloadScheduler(); // Memuat ulang data dan memperbarui tampilan
+                    }
+                })
+                .catch(function (error) {
+                    console.error("Gagal menambahkan appointment:", error);
+                });
         },
         onAppointmentUpdating: function (e) {
             const appointmentData = e.newData;
-            sendRequest(apiurl + "/" + modname + "/" + e.oldData.id, "PUT", appointmentData).then(function (response) {
-                if (response.status === 'success') {
-                    reloadScheduler();
-                }
-            });
+            sendRequest(apiurl + "/" + modname + "/" + e.oldData.id, "PUT", appointmentData)
+                .then(function (response) {
+                    if (response.status === 'success') {
+                        console.log("Appointment berhasil diperbarui.");
+                        reloadScheduler(); // Memuat ulang data dan memperbarui tampilan
+                    }
+                })
+                .catch(function (error) {
+                    console.error("Gagal memperbarui appointment:", error);
+                });
         },
         onAppointmentDeleting: function (e) {
-            sendRequest(apiurl + "/" + modname + "/" + e.appointmentData.id, "DELETE").then(function (response) {
-                if (response.status === 'success') {
-                    reloadScheduler();
-                }
-            });
+            sendRequest(apiurl + "/" + modname + "/" + e.appointmentData.id, "DELETE")
+                .then(function (response) {
+                    if (response.status === 'success') {
+                        console.log("Appointment berhasil dihapus.");
+                        reloadScheduler(); // Memuat ulang data dan memperbarui tampilan
+                    }
+                })
+                .catch(function (error) {
+                    console.error("Gagal menghapus appointment:", error);
+                });
         }
     }).dxScheduler("instance");
 }
@@ -200,4 +187,12 @@ $(document).ready(function () {
 
     // Inisialisasi form dan scheduler
     initializeScheduler([]);
+
+    // Tombol reload manual
+    $('#reload-button').dxButton({
+        text: 'Reload Scheduler',
+        onClick() {
+            reloadScheduler();
+        },
+    });
 });
