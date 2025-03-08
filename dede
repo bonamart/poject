@@ -1,97 +1,203 @@
-setTimeout(() => {
-    const actionButton = document.getElementById(actionButtonId);
-    if (actionButton) {
-        actionButton.addEventListener("click", function (event) {
-            event.stopPropagation();
-            event.preventDefault();
+var modname = 'ghmrequest';
+var modelclass = 'Ghm';
+var popupmode;
+var dataSubmitted = false;
+var schedulerInstance;
+var roomsWithLocations = []; // Data ruangan dengan lokasi
+var uniqueLocations = []; // Daftar lokasi unik
+var booking = []; // Data booking
 
-            Swal.fire({
-                title: isCancelable ? 'Cancel Booking?' : 'Are you sure?',
-                text: isCancelable
-                    ? "Do you really want to cancel this booking?"
-                    : "Do you really want to delete this booking?",
-                icon: isCancelable ? 'warning' : 'error',
-                showCancelButton: true,
-                confirmButtonText: isCancelable ? 'Yes, cancel it!' : 'Yes, delete it!',
-                cancelButtonText: 'No, keep it'
-            }).then((result) => {
-                if (!result.isConfirmed) return;
-
-                let requestType = isCancelable ? "PATCH" : "DELETE";
-                let requestData = isCancelable ? { requestStatus: 0 } : {};
-
-                sendRequest(apiurl + "/" + modname + "/" + booking.id, requestType, requestData)
-                    .then(response => {
-                        if (response.status === "success") {
-                            Swal.fire({
-                                icon: 'success',
-                                title: isCancelable ? 'Booking Canceled!' : 'Deleted!',
-                                text: isCancelable ? 
-                                    'Booking has been successfully set to Canceled.' : 
-                                    'Booking deleted successfully!',
-                                timer: 2000,
-                                showConfirmButton: false
-                            });
-
-                            // Hanya update booking yang diubah
-                            let updatedData = schedulerInstance.option("dataSource").map(item => {
-                                if (item.id === booking.id) {
-                                    return { ...item, requestStatus: 0 }; // Update status
-                                }
-                                return item;
-                            });
-
-                            // Gunakan salinan baru agar tidak mempengaruhi data lain
-                            schedulerInstance.option("dataSource", JSON.parse(JSON.stringify(updatedData)));
-                            schedulerInstance.repaint();
-                        } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: response.message || "Failed to update booking."
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: error.responseText || "Unknown error."
-                        });
-                    });
-            });
-        });
-    }
-}, 200);
-
-
-
-
-function repaintScheduler() {
-    if (!schedulerInstance) {
-        console.warn("⚠️ schedulerInstance belum diinisialisasi. Tunggu sampai Scheduler siap.");
-        return;
-    }
-
-    let url = apiurl + "/" + modname;
-    console.log("🔄 Fetching new data from:", url);
-
-    sendRequest(url, "GET")
-        .then(newData => {
-            console.log("✅ Data Fetched:", newData);
-
-            if (!Array.isArray(newData) || newData.length === 0) {
-                console.warn("⚠️ Warning: Data kosong setelah update!");
-                return;
-            }
-
-            // Buat salinan baru dari data agar perubahan tidak mempengaruhi referensi lama
-            let freshData = JSON.parse(JSON.stringify(newData));
-
-            schedulerInstance.option("dataSource", freshData);
-            schedulerInstance.repaint();
-        })
-        .catch(error => {
-            console.error("❌ Gagal mengambil data terbaru:", error);
-        });
+// Fungsi untuk mengonversi array ke JSON
+function serializeToJSON(data) {
+    return JSON.stringify(data);
 }
+
+// Fungsi untuk mengonversi JSON ke array
+function deserializeFromJSON(jsonString) {
+    return JSON.parse(jsonString);
+}
+
+// Fungsi untuk mengirim permintaan ke API
+function sendRequest(url, method, data) {
+    return $.ajax({
+        url: url,
+        method: method,
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        dataType: 'json'
+    });
+}
+
+// Fungsi untuk memuat ulang scheduler
+function reloadScheduler() {
+    if (schedulerInstance) {
+        schedulerInstance.getDataSource().reload().done(() => {
+            schedulerInstance.repaint();
+            console.log("Scheduler reloaded and repainted.");
+        });
+    } else {
+        console.error("Scheduler instance is not initialized.");
+    }
+}
+
+// Fungsi untuk memperbarui tampilan scheduler
+function repaintScheduler() {
+    if (schedulerInstance) {
+        schedulerInstance.repaint();
+        console.log("Scheduler repainted.");
+    } else {
+        console.error("Scheduler instance is not initialized.");
+    }
+}
+
+// Fungsi untuk memperbarui daftar ruangan berdasarkan lokasi yang dipilih
+function updateRoomSelector(location) {
+    const filteredRooms = roomsWithLocations.filter(room => room.location === location);
+    $('#room-selector').dxSelectBox({
+        dataSource: filteredRooms,
+        displayExpr: 'text',
+        valueExpr: 'id',
+        value: null,
+        placeholder: 'Select Room',
+        onValueChanged: function (e) {
+            const selectedRoomId = e.value;
+            updateScheduler(location, selectedRoomId);
+        }
+    });
+    updateScheduler(location, null);
+}
+
+// Fungsi untuk memperbarui scheduler berdasarkan ruangan yang dipilih
+function updateScheduler(location, roomId) {
+    let dataSource = roomsWithLocations.filter(room => room.location === location);
+    if (roomId) {
+        dataSource = dataSource.filter(room => room.id === roomId);
+    }
+
+    if (!schedulerInstance) {
+        initializeScheduler(dataSource);
+    } else {
+        schedulerInstance.option('dataSource', dataSource);
+        repaintScheduler();
+    }
+}
+
+// Fungsi untuk menginisialisasi scheduler
+function initializeScheduler(dataSource) {
+    schedulerInstance = $("#scheduler").dxScheduler({
+        timeZone: 'Asia/Makassar',
+        dataSource: dataSource,
+        views: ['month'],
+        currentView: 'month',
+        currentDate: new Date(),
+        firstDayOfWeek: 1,
+        startDayHour: 10,
+        endDayHour: 22,
+        height: 710,
+        groups: ['ghm_room_id'],
+        resources: [
+            {
+                fieldExpr: 'ghm_room_id',
+                allowMultiple: false,
+                dataSource: dataSource,
+                label: 'Room Name'
+            }
+        ],
+        editing: {
+            allowAdding: true,
+            allowUpdating: true,
+            allowDeleting: true
+        },
+        onAppointmentFormOpening: function (e) {
+            const form = e.form;
+            const appointmentData = e.appointmentData;
+            form.option('items', [
+                {
+                    itemType: 'group',
+                    colCount: 2,
+                    items: [
+                        {
+                            label: { text: 'Purpose' },
+                            dataField: 'text',
+                            editorType: 'dxTextBox',
+                            validationRules: [{ type: "required", message: 'Purpose is required' }]
+                        },
+                        {
+                            label: { text: 'Room' },
+                            dataField: 'ghm_room_id',
+                            editorType: 'dxSelectBox',
+                            editorOptions: {
+                                dataSource: dataSource,
+                                displayExpr: 'text',
+                                valueExpr: 'id'
+                            }
+                        },
+                        {
+                            label: { text: 'Start Date' },
+                            dataField: 'startDate',
+                            editorType: 'dxDateBox',
+                            editorOptions: {
+                                type: 'datetime'
+                            }
+                        },
+                        {
+                            label: { text: 'End Date' },
+                            dataField: 'endDate',
+                            editorType: 'dxDateBox',
+                            editorOptions: {
+                                type: 'datetime'
+                            }
+                        }
+                    ]
+                }
+            ]);
+        },
+        onAppointmentAdding: function (e) {
+            const appointmentData = e.appointmentData;
+            sendRequest(apiurl + "/" + modname, "POST", appointmentData).then(function (response) {
+                if (response.status === 'success') {
+                    reloadScheduler();
+                }
+            });
+        },
+        onAppointmentUpdating: function (e) {
+            const appointmentData = e.newData;
+            sendRequest(apiurl + "/" + modname + "/" + e.oldData.id, "PUT", appointmentData).then(function (response) {
+                if (response.status === 'success') {
+                    reloadScheduler();
+                }
+            });
+        },
+        onAppointmentDeleting: function (e) {
+            sendRequest(apiurl + "/" + modname + "/" + e.appointmentData.id, "DELETE").then(function (response) {
+                if (response.status === 'success') {
+                    reloadScheduler();
+                }
+            });
+        }
+    }).dxScheduler("instance");
+}
+
+// Fungsi untuk memeriksa apakah suatu tanggal adalah akhir pekan
+function isWeekEnd(date) {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+}
+
+// Fungsi untuk memeriksa apakah dua rentang tanggal saling tumpang tindih
+function isDateOverlap(start1, end1, start2, end2) {
+    return (new Date(start1) <= new Date(end2)) && (new Date(start2) <= new Date(end1));
+}
+
+// Inisialisasi saat dokumen siap
+$(document).ready(function () {
+    // Load data awal untuk ruangan dan lokasi
+    sendRequest(apiurl + "/rooms", "GET").then(function (response) {
+        roomsWithLocations = response.data;
+        uniqueLocations = [...new Set(roomsWithLocations.map(room => room.location))];
+        updateRoomSelector(uniqueLocations[0]);
+    });
+
+    // Inisialisasi form dan scheduler
+    initializeScheduler([]);
+});
